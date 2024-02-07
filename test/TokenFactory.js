@@ -3,67 +3,75 @@ const { BigNumber } = require("ethers");
 const { address } = require("hardhat/internal/core/config/config-validation");
 
 describe("TokenFactory", function () {
-    let tokenFactory;
+  let tokenFactory;
 
-    before(async function () {
-        const Token = await ethers.getContractFactory("ERC20PeggedToken");
-        let token = await Token.deploy(); // Adjust initial supply as needed
-        await token.deployed();
+  before(async function () {
+    const Token = await ethers.getContractFactory("ERC20PeggedToken");
+    let token = await Token.deploy(); // Adjust initial supply as needed
+    await token.deployed();
 
-        const TokenFactoryContract = await ethers.getContractFactory("ERC20TokenFactory");
-        tokenFactory = await TokenFactoryContract.deploy(token.address);
-        await tokenFactory.deployed();
-    });
+    const TokenFactoryContract =
+      await ethers.getContractFactory("ERC20TokenFactory");
+    tokenFactory = await TokenFactoryContract.deploy(token.address);
+    await tokenFactory.deployed();
+  });
 
-    it("computePeggedTokenAddress", async function () {
-        const accounts = await hre.ethers.getSigners();
+  it("computePeggedTokenAddress", async function () {
+    const accounts = await hre.ethers.getSigners();
 
-        const contractWithSigner = tokenFactory.connect(accounts[0]);
-        const computeAddress = await contractWithSigner.computePeggedTokenAddress(
-            "0x1111111111111111111111111111111111111111",
-            "0x2222222222222222222222222222222222222222",
-        );
+    const contractWithSigner = tokenFactory.connect(accounts[0]);
+    const computeAddress = await contractWithSigner.computePeggedTokenAddress(
+      "0x1111111111111111111111111111111111111111",
+      "0x2222222222222222222222222222222222222222",
+    );
 
-        expect(computeAddress).equal("0x37aEd0485afCf86083c8B4dEa6f4Fee734e80594");
-    });
+    expect(computeAddress).equal("0x37aEd0485afCf86083c8B4dEa6f4Fee734e80594");
+  });
 
-    it("deployPeggedToken", async function () {
-        const accounts = await hre.ethers.getSigners();
+  it("deployPeggedToken", async function () {
+    const accounts = await hre.ethers.getSigners();
 
-        const contractWithSigner = tokenFactory.connect(accounts[0]);
+    const contractWithSigner = tokenFactory.connect(accounts[0]);
 
-        const deployTx = await contractWithSigner.deployPeggedToken(
-            "0x1111111111111111111111111111111111111111",
-            "0x2222222222222222222222222222222222222222",
-        );
+    const deployTx = await contractWithSigner.deployPeggedToken(
+      "0x1111111111111111111111111111111111111111",
+      "0x2222222222222222222222222222222222222222",
+    );
 
-        await deployTx.wait();
+    await deployTx.wait();
 
-        let events = await tokenFactory.queryFilter("TokenDeployed", deployTx.blockNumber);
+    let events = await tokenFactory.queryFilter(
+      "TokenDeployed",
+      deployTx.blockNumber,
+    );
 
-        expect(events.length).to.equal(1);
+    expect(events.length).to.equal(1);
 
-        let peggedAddress = events[0].args._peggedToken;
+    let peggedAddress = events[0].args._peggedToken;
 
-        const tokenArtifact = await artifacts.readArtifact("ERC20PeggedToken");
-        const tokenAbi = tokenArtifact.abi;
+    const tokenArtifact = await artifacts.readArtifact("ERC20PeggedToken");
+    const tokenAbi = tokenArtifact.abi;
 
-        // Connect to deployed Token contract
-        let tokenContract = new ethers.Contract(peggedAddress, tokenAbi, ethers.provider.getSigner());
+    // Connect to deployed Token contract
+    let tokenContract = new ethers.Contract(
+      peggedAddress,
+      tokenAbi,
+      ethers.provider.getSigner(),
+    );
 
-        let initTx = await tokenContract.initialize(
-            "Token",
-            "Symbol",
-            16,
-            "0x1111111111111111111111111111111111111111",
-            "0x2222222222222222222222222222222222222222",
-        );
+    let initTx = await tokenContract.initialize(
+      "Token",
+      "Symbol",
+      16,
+      "0x1111111111111111111111111111111111111111",
+      "0x2222222222222222222222222222222222222222",
+    );
 
-        await initTx.wait();
+    await initTx.wait();
 
-        let [gateway, origin] = await tokenContract.getOrigin();
+    let [gateway, origin] = await tokenContract.getOrigin();
 
-        expect(gateway).equal("0x1111111111111111111111111111111111111111");
-        expect(origin).equal("0x2222222222222222222222222222222222222222");
-    });
+    expect(gateway).equal("0x1111111111111111111111111111111111111111");
+    expect(origin).equal("0x2222222222222222222222222222222222222222");
+  });
 });

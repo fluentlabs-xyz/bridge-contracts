@@ -7,7 +7,7 @@
     "test": "npx hardhat test",
     "build": "npx hardhat compile",
     "prettier": "npx prettier --write --plugin=prettier-plugin-solidity 'contracts/**/*.sol'",
-    "prettier:test": "npx prettier --write 'test/**/*.js'",
+    "prettier:test": "npx prettier --write 'test/**/*.js' 'scripts/**/*.js'",
     "solhint": "./node_modules/.bin/solhint -f table contracts/**/*.sol"
   },
   "keywords": [],
@@ -19,6 +19,7 @@
     "chai": "^4.3.10",
     "ethers": "^5.7.2",
     "hardhat": "^2.19.2",
+    "hardhat-abi-exporter": "^2.10.1",
     "prettier": "^3.1.1",
     "prettier-plugin-solidity": "^1.2.0",
     "solhint": "^4.0.0"
