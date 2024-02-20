@@ -4,7 +4,15 @@ require("@nomiclabs/hardhat-solhint");
 require('hardhat-abi-exporter');
 
 module.exports = {
-  solidity: "0.8.20",
+  solidity: {
+    version: '0.8.20',
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 200,
+      },
+    },
+  },
   networks: {
     L1: {
       url: "http://localhost:8545",

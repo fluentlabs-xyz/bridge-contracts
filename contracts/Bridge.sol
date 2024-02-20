@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {IERC20Gateway} from "./IERC20Gateway.sol";
+import {IERC20Gateway} from "./interfaces/IERC20Gateway.sol";
 import {Rollup} from "./Rollup.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
@@ -39,12 +39,21 @@ contract Bridge {
         rollup = _rollup;
     }
 
-    function sendMessage(address _to, bytes calldata _message) external payable {
+    function sendMessage(
+        address _to,
+        bytes calldata _message
+    ) external payable {
         address from = msg.sender;
         uint256 value = msg.value;
         uint256 messageNonce = _takeNextNonce();
 
-        bytes memory encodedMessage = _encodeMessage(from, _to, value, messageNonce, _message);
+        bytes memory encodedMessage = _encodeMessage(
+            from,
+            _to,
+            value,
+            messageNonce,
+            _message
+        );
 
         bytes32 messageHash = keccak256(encodedMessage);
 
@@ -62,7 +71,13 @@ contract Bridge {
         bytes memory merkleProof,
         uint256 proofIndex
     ) external payable {
-        bytes memory encodedMessage = _encodeMessage(_from, _to, _value, _nonce, _message);
+        bytes memory encodedMessage = _encodeMessage(
+            _from,
+            _to,
+            _value,
+            _nonce,
+            _message
+        );
 
         bytes32 messageHash = keccak256(encodedMessage);
         require(!receivedMessage[messageHash], "Message already received");
@@ -71,7 +86,12 @@ contract Bridge {
 
         bytes32 _messageRoot = Rollup(rollup).withdrawRoots(proofIndex);
         require(
-            Rollup(rollup).verifyMerkleProof(_messageRoot, messageHash, _nonce, merkleProof),
+            Rollup(rollup).verifyMerkleProof(
+                _messageRoot,
+                messageHash,
+                _nonce,
+                merkleProof
+            ),
             "Invalid proof"
         );
 
@@ -85,8 +105,13 @@ contract Bridge {
         uint256 _nonce,
         bytes calldata _message
     ) external payable onlyBridgeSender {
-
-        bytes memory encodedMessage = _encodeMessage(_from, _to, _value, _nonce, _message);
+        bytes memory encodedMessage = _encodeMessage(
+            _from,
+            _to,
+            _value,
+            _nonce,
+            _message
+        );
 
         bytes32 messageHash = keccak256(encodedMessage);
 

@@ -9,7 +9,7 @@ contract Rollup is Ownable {
     mapping(uint256 => bytes32) public withdrawRoots;
     mapping(uint256 => bytes32) public depositsRoots;
 
-    constructor () Ownable(msg.sender) {}
+    constructor() Ownable(msg.sender) {}
 
     function setBridge(address _bridge) external payable onlyOwner {
         bridge = _bridge;
@@ -23,7 +23,10 @@ contract Rollup is Ownable {
         require(lastProofedIndex + 1 == _proofIndex, "Incorrect proof index");
 
         if (_depositHashes.length != 0) {
-            require(validateDepositsHashes(_depositHashes), "Incorrect deposit hash");
+            require(
+                validateDepositsHashes(_depositHashes),
+                "Incorrect deposit hash"
+            );
             bytes32 _depositRoot = _calculateMerkleRoot(_depositHashes);
             depositsRoots[_proofIndex] = _depositRoot;
         }
@@ -43,7 +46,7 @@ contract Rollup is Ownable {
     ) internal returns (bool) {
         uint256 count = _leafs.length / 32;
 
-        for(uint256 i = 0; i < count; i++) {
+        for (uint256 i = 0; i < count; i++) {
             bytes32 messageHash;
             assembly {
                 messageHash := mload(add(add(_leafs, 32), mul(i, 32)))
@@ -73,11 +76,12 @@ contract Rollup is Ownable {
             bytes32 hash;
             bytes32 left;
             bytes32 right;
-            for(uint256 i = 0; i < count/2; i++) {
-
+            for (uint256 i = 0; i < count / 2; i++) {
                 assembly {
-                    left := mload(add(add(_leafs, 32), mul(mul(i,2), 32)))
-                    right := mload(add(add(_leafs, 32), mul(add(mul(i,2), 1), 32)))
+                    left := mload(add(add(_leafs, 32), mul(mul(i, 2), 32)))
+                    right := mload(
+                        add(add(_leafs, 32), mul(add(mul(i, 2), 1), 32))
+                    )
                 }
                 hash = _efficientHash(left, right);
                 assembly {
@@ -92,7 +96,10 @@ contract Rollup is Ownable {
                 hash = _efficientHash(left, bytes32(0));
 
                 assembly {
-                    mstore(add(add(_leafs, 32), mul(div(sub(count,1),2), 32)), hash)
+                    mstore(
+                        add(add(_leafs, 32), mul(div(sub(count, 1), 2), 32)),
+                        hash
+                    )
                 }
                 count += 1;
             }
@@ -101,7 +108,7 @@ contract Rollup is Ownable {
         }
         bytes32 root;
         assembly {
-          root := mload(add(_leafs, 32))
+            root := mload(add(_leafs, 32))
         }
 
         return root;
@@ -131,7 +138,10 @@ contract Rollup is Ownable {
         return _hash == _root;
     }
 
-    function _efficientHash(bytes32 a, bytes32 b) private pure returns (bytes32 value) {
+    function _efficientHash(
+        bytes32 a,
+        bytes32 b
+    ) private pure returns (bytes32 value) {
         assembly {
             mstore(0x00, a)
             mstore(0x20, b)

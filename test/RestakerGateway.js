@@ -2,12 +2,15 @@ const { expect } = require("chai");
 const { BigNumber } = require("ethers");
 const { address } = require("hardhat/internal/core/config/config-validation");
 
-describe("Bridge", function () {
+describe("RestakerGateway", function () {
   let bridge;
   let erc20Gateway;
-  let erc20GatewayAbi;
+  let restakingGatewayAbi;
   let token;
   let tokenFactory;
+  let restakerGateway;
+  let mockRestaker;
+  let mockLiquidityToken;
 
   before(async function () {
     const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
@@ -29,7 +32,6 @@ describe("Bridge", function () {
 
     const ERC20GatewayContract =
       await ethers.getContractFactory("ERC20Gateway");
-    erc20GatewayAbi = ERC20GatewayContract.interface.format();
     erc20Gateway = await ERC20GatewayContract.deploy(
       bridge.address,
       tokenFactory.address,
@@ -37,6 +39,7 @@ describe("Bridge", function () {
         value: ethers.utils.parseEther("1000"),
       },
     );
+    await erc20Gateway.deployed();
 
     const authTx = await tokenFactory.transferOwnership(erc20Gateway.address);
     await authTx.wait();
@@ -47,29 +50,63 @@ describe("Bridge", function () {
       "TKN",
       ethers.utils.parseEther("1000000"),
       accounts[0].address,
-    ); // Adjust initial supply as needed
+    );
     await token.deployed();
 
-    await erc20Gateway.deployed();
+    const MockLiquidityToken = await ethers.getContractFactory("MockLiquidityToken");
+    mockLiquidityToken = await MockLiquidityToken.deploy(
+        "Liquidity Token",
+        "LQT",
+        ethers.utils.parseEther("1000000"),
+        accounts[0].address,
+    );
+    await mockLiquidityToken.deployed();
+
+
+
+    const MockRestaker = await ethers.getContractFactory("MockRestaker");
+    mockRestaker = await MockRestaker.deploy(
+        mockLiquidityToken.address,
+    );
+    await mockRestaker.deployed();
+
+    let tokenWithSigner = mockLiquidityToken.connect(accounts[0])
+
+    let tx = await tokenWithSigner.setRestaker(
+        mockRestaker.address
+    )
+    await tx.wait()
+
+    const RestakerGateway = await ethers.getContractFactory("RestakerGateway");
+    restakingGatewayAbi = RestakerGateway.interface.format();
+    restakerGateway = await RestakerGateway.deploy(
+        erc20Gateway.address,
+        mockRestaker.address,
+        bridge.address
+
+    );
+    await restakerGateway.deployed();
+
   });
 
-  it("Send tokens test", async function () {
+  it("Stake tokens test", async function () {
     const accounts = await hre.ethers.getSigners();
-    const tokenWithSigner = token.connect(accounts[0]);
-    const approve_tx = await tokenWithSigner.approve(erc20Gateway.address, 100);
-    await approve_tx.wait();
 
-    const contractWithSigner = erc20Gateway.connect(accounts[0]);
-    const origin_balance = await token.balanceOf(accounts[0].address);
-    const origin_bridge_balance = await token.balanceOf(erc20Gateway.address);
+    const origin_account_balance = await hre.ethers.provider.getBalance(
+        accounts[0].address,
+    );
+    const origin_balance = await mockLiquidityToken.balanceOf(erc20Gateway.address);
 
-    const send_tx = await contractWithSigner.sendTokens(
-      token.address,
-      accounts[3].address,
-      100,
+    const contractWithSigner = restakerGateway.connect(accounts[0]);
+
+    const send_tx = await contractWithSigner.sendRestakedTokens(
+      "0x1111111111111111111111111111111111111111",
+        { value: 1000 },
     );
 
-    await send_tx.wait();
+    let receipt = await send_tx.wait();
+
+    let gasUsed = receipt.cumulativeGasUsed * receipt.effectiveGasPrice;
 
     const events = await bridge.queryFilter("SentMessage", send_tx.blockNumber);
 
@@ -77,13 +114,17 @@ describe("Bridge", function () {
 
     expect(events[0].args.sender).to.equal(erc20Gateway.address);
 
-    const balance = await token.balanceOf(accounts[0].address);
-    const bridge_balance = await token.balanceOf(erc20Gateway.address);
 
-    expect(bridge_balance.sub(origin_bridge_balance)).to.be.eql(
-      BigNumber.from(100),
+    const account_balance = await hre.ethers.provider.getBalance(
+        accounts[0].address,
     );
-    expect(origin_balance.sub(balance)).to.be.eql(BigNumber.from(100));
+
+    expect(origin_account_balance.sub(account_balance).sub(gasUsed)).to.be.eql(BigNumber.from(1000))
+
+    const token_balance = await mockLiquidityToken.balanceOf(erc20Gateway.address);
+
+    expect(token_balance.sub(origin_balance)).to.be.eql(BigNumber.from(1000))
+
   });
 
   it("Receive tokens test", async function () {
@@ -95,44 +136,25 @@ describe("Bridge", function () {
     const origin_balance =
       await hre.ethers.provider.getBalance(receiverAddress);
 
-    const gatewayInterface = new ethers.utils.Interface(erc20GatewayAbi);
-    const _token = token.address;
+    const gatewayInterface = new ethers.utils.Interface(restakingGatewayAbi);
     const _to = accounts[3].address;
     const _from = accounts[0].address;
     const _amount = 100;
 
     const functionSelector = gatewayInterface.getSighash(
-      "receivePeggedTokens(address,address,address,address,uint256,bytes)",
+      "receiveRestakedTokens(address,address,uint256)",
     );
 
-    const peggedTokenAddress = await tokenFactory.computePeggedTokenAddress(
-      erc20Gateway.address,
-      token.address,
-    );
-
-    const tokenMetadata = {
-      name: "MyToken",
-      symbol: "MTK",
-      decimals: 18,
-    };
-
-    const encodedTokenMetadata = ethers.utils.defaultAbiCoder.encode(
-      ["string", "string", "uint8"],
-      [tokenMetadata.symbol, tokenMetadata.name, tokenMetadata.decimals],
-    );
 
     const _message =
       functionSelector +
       ethers.utils.defaultAbiCoder
         .encode(
-          ["address", "address", "address", "address", "uint256", "bytes"],
+          ["address", "address", "uint256"],
           [
-            _token,
-            peggedTokenAddress,
             _from,
             _to,
             _amount,
-            encodedTokenMetadata,
           ],
         )
         .slice(2);
@@ -148,7 +170,7 @@ describe("Bridge", function () {
     const hash = ethers.utils.keccak256(inputBytes);
 
     expect(hash).to.equal(
-      "0x7507ff1d7b2bf735f2a1a6fad46edd6e3d2048524a098fcaca8afb9f67b6b802",
+      "0xece47fe60704fad6f857c8f1aaa2ff9dec7d886b6171252458f06bf5ee7ea699",
     );
 
     const receive_tx = await contractWithSigner.receiveMessage(
@@ -174,7 +196,7 @@ describe("Bridge", function () {
 
     expect(events.length).to.equal(1);
     expect(events[0].args.messageHash).to.equal(
-      "0xb2877f7f0912452bde2efbd451cb4146f105de323c9a70963d8c878f842a76e3",
+      "0x6451ff2a61f674a843f3db146d0fe0e8f0b5ba4c8288dd23c32d1e4dcc83d812",
     );
     expect(events[0].args.successfulCall).to.equal(true);
 
