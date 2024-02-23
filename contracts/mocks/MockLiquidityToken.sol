@@ -19,7 +19,7 @@ contract MockLiquidityToken is ILiquidityToken, ERC20 {
     address public restaker;
 
     modifier onlyRestaker() {
-        require(msg.sender == restaker, "call only from bridge");
+        require(msg.sender == restaker, "call only from restaker");
         _;
     }
 
@@ -58,6 +58,6 @@ contract MockLiquidityToken is ILiquidityToken, ERC20 {
     }
 
     function totalAssets() external view returns (uint256 totalManagedEth) {
-       return 0;
+        return 0;
     }
 }

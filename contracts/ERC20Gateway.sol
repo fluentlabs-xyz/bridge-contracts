@@ -22,18 +22,9 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
         _;
     }
 
-    modifier onlyFromMessage() {
-        require(
-            msg.sender == bridgeContract || msg.sender == stakingContract,
-            "call only from received message"
-        );
-        _;
-    }
-
     mapping(address => address) private tokenMapping;
 
     address public bridgeContract;
-    address public stakingContract;
     address public gatewayAuthority;
     address public tokenFactory;
     address public otherSide;
@@ -92,14 +83,27 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
         address _to,
         uint256 _amount
     ) external payable {
+        sendTokensFrom(_token, msg.sender, msg.sender, _to, _amount, msg.value);
+    }
+
+    function sendTokensFrom(
+        address _token,
+        address _sender,
+        address _from,
+        address _to,
+        uint256 _amount,
+        uint256 _value
+    ) internal {
         bytes memory _message;
 
         if (tokenMapping[_token] == address(0)) {
-            IERC20Upgradeable(_token).transferFrom(
-                msg.sender,
-                address(this),
-                _amount
-            );
+            if (_from != address(this)) {
+                IERC20Upgradeable(_token).transferFrom(
+                    _from,
+                    address(this),
+                    _amount
+                );
+            }
 
             bytes memory rawTokenMetadata = abi.encode(
                 ERC20(_token).symbol(),
@@ -116,14 +120,7 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
                 );
             _message = abi.encodeCall(
                 ERC20Gateway.receivePeggedTokens,
-                (
-                    _token,
-                    peggedToken,
-                    msg.sender,
-                    _to,
-                    _amount,
-                    rawTokenMetadata
-                )
+                (_token, peggedToken, _sender, _to, _amount, rawTokenMetadata)
             );
         } else {
             (address originGateway, address originAddress) = ERC20PeggedToken(
@@ -131,18 +128,15 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
             ).getOrigin();
             require(tokenMapping[_token] == originAddress);
 
-            ERC20PeggedToken(_token).burn(msg.sender, _amount);
+            ERC20PeggedToken(_token).burn(_from, _amount);
 
             _message = abi.encodeCall(
                 ERC20Gateway.receiveNativeTokens,
-                (originAddress, msg.sender, _to, _amount)
+                (originAddress, _sender, _to, _amount)
             );
         }
 
-        IBridge(bridgeContract).sendMessage{value: msg.value}(
-            otherSide,
-            _message
-        );
+        IBridge(bridgeContract).sendMessage{value: _value}(otherSide, _message);
     }
 
     function receivePeggedTokens(
@@ -183,7 +177,16 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
         address _from,
         address _to,
         uint256 _amount
-    ) external payable onlyFromMessage {
+    ) external payable onlyBridgeSender {
+        _receiveNativeTokens(_nativeToken, _from, _to, _amount);
+    }
+
+    function _receiveNativeTokens(
+        address _nativeToken,
+        address _from,
+        address _to,
+        uint256 _amount
+    ) internal {
         require(msg.value == 0, "Message value have to equal zero");
 
         IERC20Upgradeable(_nativeToken).transfer(_to, _amount);

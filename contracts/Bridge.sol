@@ -17,7 +17,10 @@ contract Bridge {
     address public rollup;
 
     modifier onlyBridgeSender() {
-        require(msg.sender == bridgeAuthority, "call only from bridge");
+        require(
+            msg.sender == bridgeAuthority,
+            "call only from bridge authority"
+        );
         _;
     }
 

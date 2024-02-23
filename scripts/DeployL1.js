@@ -3,7 +3,7 @@ const { ethers } = require("hardhat");
 async function main() {
   // let provider_url =
   //   "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
-  const provider_url = "http://127.0.0.1:8545/"
+  const provider_url = "http://127.0.0.1:8545/";
 
   const privateKey = process.env.PRIVATE_KEY;
   let provider = new ethers.providers.JsonRpcProvider(provider_url);
@@ -33,10 +33,10 @@ async function deployL1(provider, signer) {
 
   const Token = await ethers.getContractFactory("MockERC20Token");
   let l1Token = await Token.connect(signer).deploy(
-      "Mock Token",
-      "TKN",
-      ethers.utils.parseEther("1000000"),
-      await signer.getAddress(),
+    "Mock Token",
+    "TKN",
+    ethers.utils.parseEther("1000000"),
+    await signer.getAddress(),
   );
   await l1Token.deployed();
 
@@ -48,8 +48,7 @@ async function deployL1(provider, signer) {
 
   // console.log("Contract: ", tx);
 
-  console.log(await estimate_gas(provider, peggedToken))
-
+  console.log(await estimate_gas(provider, peggedToken));
 
   // let peggedToken = await PeggedToken.connect(signer).attach("0x6Ff08946Cef705D7bBC5deef4E56004e2365979f");
   console.log("Pegged token: ", peggedToken.address);
@@ -59,7 +58,7 @@ async function deployL1(provider, signer) {
   let rollup = await RollupContract.connect(signer).deploy();
   await rollup.deployed();
 
-  console.log(await estimate_gas(provider, rollup))
+  console.log(await estimate_gas(provider, rollup));
   // let rollup = await RollupContract.connect(signer).attach("0xb592Ed460f5Ab1b2eF874bE5e3d0FbE6950127Da");
 
   let rollupAddress = rollup.address;
@@ -71,7 +70,7 @@ async function deployL1(provider, signer) {
   );
   await bridge.deployed();
 
-  console.log(await estimate_gas(provider, bridge))
+  console.log(await estimate_gas(provider, bridge));
   // let bridge = await BridgeContract.connect(signer).attach("0xf70f7cADD71591e96BD696716A4A2bA6286c82e8");
   console.log("Bridge: ", bridge.address);
 
@@ -87,7 +86,7 @@ async function deployL1(provider, signer) {
   await tokenFactory.deployed();
   console.log("TokenFactory: ", tokenFactory.address);
 
-  console.log(await estimate_gas(provider, tokenFactory))
+  console.log(await estimate_gas(provider, tokenFactory));
   const ERC20GatewayContract = await ethers.getContractFactory("ERC20Gateway");
   let erc20Gateway = await ERC20GatewayContract.connect(signer).deploy(
     bridge.address,
@@ -102,7 +101,7 @@ async function deployL1(provider, signer) {
   await erc20Gateway.deployed();
   console.log("Gateway: ", erc20Gateway.address);
 
-  console.log(await estimate_gas(provider, erc20Gateway))
+  console.log(await estimate_gas(provider, erc20Gateway));
   return {
     bridge: bridge.address,
     erc20Gateway: erc20Gateway.address,

@@ -33,6 +33,14 @@ contract MockRestaker is IRestaker, ReentrancyGuardUpgradeable {
 
     function unstake(address to, uint256 shares) external nonReentrant {
         address from = msg.sender;
+        this.unstakeFrom(from, to, shares);
+    }
+
+    function unstakeFrom(
+        address from,
+        address to,
+        uint256 shares
+    ) external nonReentrant {
         ILiquidityToken token = ILiquidityToken(liquidityToken);
         uint256 amount = token.convertToAmount(shares);
 
