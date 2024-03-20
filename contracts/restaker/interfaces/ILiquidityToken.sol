@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /**
  * @dev Interface of the cToken.
  */
-interface ILiquidityToken is IERC20 {
+interface ILiquidityToken {
     /* errors */
 
     /* functions */

@@ -5,6 +5,8 @@ pragma solidity ^0.8.0;
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+import "hardhat/console.sol";
+
 contract ERC20TokenFactory is Ownable {
     address public implementation;
 
@@ -48,11 +50,15 @@ contract ERC20TokenFactory is Ownable {
         address _gateway,
         address _originToken
     ) external onlyOwner returns (address) {
+
         bytes32 salt = _calculateSalt(_gateway, _originToken);
+
 
         address peggedToken = Clones.cloneDeterministic(implementation, salt);
 
+
         emit TokenDeployed(_originToken, peggedToken);
+
 
         return peggedToken;
     }

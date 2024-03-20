@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 import {IBridge} from "./IBridge.sol";
 
-import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IERC20Gateway {
     event ReceivedTokens(address target, uint256 amount);

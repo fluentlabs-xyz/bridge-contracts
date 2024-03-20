@@ -6,7 +6,9 @@ import {IERC20Gateway} from "./interfaces/IERC20Gateway.sol";
 import {Rollup} from "./Rollup.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+import "hardhat/console.sol";
 
 contract Bridge {
     uint256 public nonce;
@@ -132,6 +134,7 @@ contract Bridge {
         bytes32 _messageHash
     ) private {
         require(_to != address(this), "Forbid to call self");
+
 
         (bool success, bytes memory data) = _to.call{value: _value}(_message);
 

@@ -2,13 +2,18 @@
 
 pragma solidity ^0.8.0;
 
+import "hardhat/console.sol";
 import {IBridge} from "./interfaces/IBridge.sol";
 import {IERC20Gateway} from "./interfaces/IERC20Gateway.sol";
 import {ERC20PeggedToken} from "./ERC20PeggedToken.sol";
 import {ERC20TokenFactory} from "./ERC20TokenFactory.sol";
-import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {RestakingPool} from "./restaker/RestakingPool.sol";
+import {IRestakingPool} from "./restaker/interfaces/IRestakingPool.sol";
+
+import "hardhat/console.sol";
 
 contract ERC20Gateway is Ownable, IERC20Gateway {
     struct TokenMetadata {
@@ -98,7 +103,7 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
 
         if (tokenMapping[_token] == address(0)) {
             if (_from != address(this)) {
-                IERC20Upgradeable(_token).transferFrom(
+                IERC20(_token).transferFrom(
                     _from,
                     address(this),
                     _amount
@@ -136,6 +141,7 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
             );
         }
 
+
         IBridge(bridgeContract).sendMessage{value: _value}(otherSide, _message);
     }
 
@@ -147,28 +153,46 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
         uint256 _amount,
         bytes calldata _tokenMetadata
     ) external payable onlyBridgeSender {
+
         require(msg.value == 0, "Message value have to equal zero");
+
         require(_originToken != address(0), "Origin token can't be equal zero");
+        uint256 l = _peggedToken.code.length;
+
 
         if (_peggedToken.code.length == 0) {
+
+
             address new_pegged_token = _deployL2Token(
                 _tokenMetadata,
                 _originToken
             );
+
+
+
+
             require(
                 new_pegged_token == _peggedToken,
                 "321Wrong pegged token provided as argument"
             );
 
+
             tokenMapping[_peggedToken] = _originToken;
+
+
         } else {
+
+
             require(
                 tokenMapping[_peggedToken] == _originToken,
                 "123Failed while token mapping check. Origin or pegged token is wrong"
             );
         }
 
+
         ERC20PeggedToken(_peggedToken).mint(_to, _amount);
+
+
         emit ReceivedTokens(_from, _to, _amount);
     }
 
@@ -189,7 +213,7 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
     ) internal {
         require(msg.value == 0, "Message value have to equal zero");
 
-        IERC20Upgradeable(_nativeToken).transfer(_to, _amount);
+        IERC20(_nativeToken).transfer(_to, _amount);
         emit ReceivedTokens(_from, _to, _amount);
     }
 
@@ -209,10 +233,14 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
         bytes memory _tokenMetadata,
         address _originToken
     ) internal returns (address) {
+
+
         address _peggedToken = ERC20TokenFactory(tokenFactory)
             .deployPeggedToken(address(this), _originToken);
+
         (string memory _symbol, string memory _name, uint8 _decimals) = abi
             .decode(_tokenMetadata, (string, string, uint8));
+
         ERC20PeggedToken(_peggedToken).initialize(
             _name,
             _symbol,

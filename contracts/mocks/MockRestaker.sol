@@ -1,8 +1,8 @@
 import {ILiquidityToken} from "../interfaces/ILiquidityToken.sol";
-import {IRestaker} from "../interfaces/IRestaker.sol";
-import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import {IRestakerProvider} from "../interfaces/IRestakerProvider.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract MockRestaker is IRestaker, ReentrancyGuardUpgradeable {
+contract MockRestaker is IRestakerProvider, ReentrancyGuard {
     address public liquidityToken;
 
     constructor(address _liquidityToken) {

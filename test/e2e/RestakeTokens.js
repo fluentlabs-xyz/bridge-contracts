@@ -5,13 +5,13 @@ describe("Contract deployment and interaction", function () {
   let l1Token;
   let l1Gateway, l2Gateway;
   let l1Bridge, l2Bridge;
-  // let l1Url = 'http://127.0.0.1:8545/';
-  let l1Url =
-    "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
-  // let l2Url = 'http://127.0.0.1:8546/';
-  let l2Url = "https://rpc.dev1.fluentlabs.xyz/";
+  let l1Url = 'http://127.0.0.1:8545/';
+  let l2Url = 'http://127.0.0.1:8546/';
   let l1Implementation, l2Implementation;
   let rollup;
+  let l1RestakerGateway, l2RestakerGateway;
+  let restakerPool;
+  let liquidityToken;
 
   before(async () => {
     [l1Gateway, l1Bridge, l1Implementation, l1Factory] = await SetUpChain(
@@ -23,9 +23,12 @@ describe("Contract deployment and interaction", function () {
       await SetUpChain(l2Url);
 
     let providerL1 = new ethers.providers.JsonRpcProvider(l1Url); // Replace with your node's RPC URL
-    const privateKey = process.env.PRIVATE_KEY;
-    const signerL1 = new ethers.Wallet(privateKey, providerL1);
-    // let signerL1 = providerL1.getSigner();
+
+    const signerL1 = providerL1.getSigner()
+
+    let providerL2 = new ethers.providers.JsonRpcProvider(l2Url)
+    const signerL2 = providerL2.getSigner()
+
     const accounts = await hre.ethers.getSigners();
 
     const Token = await ethers.getContractFactory("MockERC20Token");
@@ -40,7 +43,28 @@ describe("Contract deployment and interaction", function () {
 
     console.log("L1 gw: ", l1Gateway.address, "L2 gw: ", l2Gateway.address);
 
-    let tx = await l1Gateway.setOtherSide(
+    [l1RestakerGateway, restakerPool, liquidityToken, l1RestakerFactory, l1RestakerImplementation] = await SetUpL1Restaker(signerL1, l1Bridge.address);
+
+    console.log("L1 Restaker gateway: ", l1RestakerGateway.address);
+
+    [l2RestakerGateway, l2RestakerFactory, l2RestakerImplementation] = await SetUpL2Restaker(signerL2, l2Bridge.address)
+
+    l2RestakerGateway.setLiquidityToken(liquidityToken.address);
+    console.log("L2 Restaker gateway: ", l2RestakerGateway.address)
+    let tx = await l1RestakerGateway.setOtherSide(
+        l2RestakerGateway.address,
+        l2RestakerImplementation.address,
+        l2RestakerFactory.address,
+    );
+    await tx.wait();
+    tx = await l2RestakerGateway.setOtherSide(
+        l1RestakerGateway.address,
+        l1RestakerImplementation.address,
+        l1RestakerFactory.address,
+    );
+    await tx.wait();
+
+    tx = await l1Gateway.setOtherSide(
       l2Gateway.address,
       l2Implementation,
       l2Factory,
@@ -53,6 +77,112 @@ describe("Contract deployment and interaction", function () {
     );
     await tx.wait();
   });
+
+  async function SetUpL1Restaker(l1Signer, bridgeAddress) {
+
+    const ProtocolConfig = await ethers.getContractFactory("ProtocolConfig");
+    let protocolConfig = await ProtocolConfig.connect(l1Signer).deploy(
+      l1Signer.getAddress(),
+      l1Signer.getAddress(),
+      l1Signer.getAddress(),
+    );
+    await protocolConfig.deployed();
+
+    const RatioFeed = await ethers.getContractFactory("RatioFeed");
+    let ratioFeed = await RatioFeed.connect(l1Signer).deploy(
+        protocolConfig.address,
+        "40000"
+    );
+    await ratioFeed.deployed();
+
+    let setRatioFeed = await protocolConfig.setRatioFeed(ratioFeed.address)
+    await setRatioFeed.wait()
+
+    const LiquidityToken = await ethers.getContractFactory("LiquidityToken");
+    let liquidityToken = await LiquidityToken.connect(l1Signer).deploy(
+        protocolConfig.address,
+        'Liquidity Token',
+        'lETH'
+    );
+    await liquidityToken.deployed();
+
+    let updateRatio = await ratioFeed.updateRatio(liquidityToken.address, 10);
+    await updateRatio.wait();
+
+    console.log("Liquidity Token: ", liquidityToken.address)
+    let setToken = await protocolConfig.setLiquidityToken(liquidityToken.address)
+    await setToken.wait()
+
+    const RestakingPool = await ethers.getContractFactory("RestakingPool");
+    let restakingPool = await RestakingPool.connect(l1Signer).deploy(
+        protocolConfig.address,
+        '200000',
+        '200000000000000000000',
+    );
+    await restakingPool.deployed();
+
+    let setPool= await protocolConfig.setRestakingPool(restakingPool.address)
+    await setPool.wait()
+
+    const FeeCollector = await ethers.getContractFactory("FeeCollector");
+    let feeCollector = await FeeCollector.connect(l1Signer).deploy(
+        protocolConfig.address,
+        '1500',
+    );
+    await feeCollector.deployed();
+
+    const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
+    let peggedToken = await PeggedToken.connect(l1Signer).deploy();
+    await peggedToken.deployed();
+
+    const TokenFactoryContract =
+        await ethers.getContractFactory("ERC20TokenFactory");
+    let tokenFactory = await TokenFactoryContract.connect(l1Signer).deploy(
+        peggedToken.address,
+    );
+    await tokenFactory.deployed();
+
+    const RestakerGateway = await ethers.getContractFactory("RestakerGateway");
+    let restakerGateway = await RestakerGateway.connect(l1Signer).deploy(
+        bridgeAddress,
+        restakingPool.address,
+        tokenFactory.address,
+    );
+    await restakerGateway.deployed();
+    console.log("REstaking Pool, ", restakingPool.address)
+
+    const authTx = await tokenFactory.transferOwnership(restakerGateway.address);
+    await authTx.wait();
+
+    return [restakerGateway, restakingPool, liquidityToken, tokenFactory, peggedToken];
+  }
+
+  async function SetUpL2Restaker(l2Signer, bridgeAddress) {
+
+    const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
+    let peggedToken = await PeggedToken.connect(l2Signer).deploy();
+    await peggedToken.deployed();
+
+    const TokenFactoryContract =
+        await ethers.getContractFactory("ERC20TokenFactory");
+    let tokenFactory = await TokenFactoryContract.connect(l2Signer).deploy(
+        peggedToken.address,
+    );
+    await tokenFactory.deployed();
+
+    const RestakerGateway = await ethers.getContractFactory("RestakerGateway");
+    let restakerGateway = await RestakerGateway.connect(l2Signer).deploy(
+        bridgeAddress,
+        "0x0000000000000000000000000000000000000000",
+        tokenFactory.address,
+    );
+    await restakerGateway.deployed();
+
+    const authTx = await tokenFactory.transferOwnership(restakerGateway.address);
+    await authTx.wait();
+
+    return [restakerGateway, tokenFactory, peggedToken];
+  }
 
   async function SetUpChain(provider_url, withRollup) {
     let provider = new ethers.providers.JsonRpcProvider(provider_url);
@@ -134,12 +264,17 @@ describe("Contract deployment and interaction", function () {
     console.log("Provider", l1Gateway.provider);
 
     console.log("Token send");
-    const send_tx = await l1Gateway.sendTokens(
-      l1Token.address,
-      l2Gateway.signer.getAddress(),
-      100,
+
+    let amount = await liquidityToken.convertToAmount(1);
+    console.log("Token: ", liquidityToken.address, "Amount: ", amount)
+
+    const send_tx = await l1RestakerGateway.sendRestakedTokens(
+        l2Gateway.signer.getAddress(),
+        {
+          value: "1000000000000000000"
+        },
     );
-    console.log("Token sent", l1Token.address);
+    console.log("Token sent", liquidityToken.address);
     let receipt = await send_tx.wait();
 
     const events = await l1Bridge.queryFilter(
@@ -170,18 +305,15 @@ describe("Contract deployment and interaction", function () {
       "ReceivedMessage",
       receive_tx.blockNumber,
     );
-
-    console.log("ReceivedMessage: ", bridge_events)
     const error_events = await l2Bridge.queryFilter(
       "Error",
       receive_tx.blockNumber,
     );
-    console.log("Error: ", error_events, l2Gateway.address)
-    const gateway_events = await l2Gateway.queryFilter(
+    const gateway_events = await l2RestakerGateway.queryFilter(
         {
           address: l2Gateway.address,
           topics: [
-              ethers.utils.id("ReceivedTokens(address,address,uint256)")
+            ethers.utils.id("ReceivedTokens(address,address,uint256)")
           ]
         },
       receive_tx.blockNumber,
@@ -194,16 +326,28 @@ describe("Contract deployment and interaction", function () {
     console.log("Gateway events: ", gateway_events);
     expect(gateway_events.length).to.equal(1);
 
-    let peggedToken = await l2Gateway.computePeggedTokenAddress(
-      l1Token.address,
+    const tokenArtifact = await artifacts.readArtifact("ERC20PeggedToken");
+    const tokenAbi = tokenArtifact.abi;
+
+    let peggedTokenAddress = await l2RestakerGateway.computePeggedTokenAddress(
+      liquidityToken.address,
     );
-    console.log("Pegged tokens: ", peggedToken);
-    const sendBackTx = await l2Gateway.sendTokens(
-      peggedToken,
+    let peggedTokenContract = new ethers.Contract(
+        peggedTokenAddress,
+        tokenAbi,
+        l2Gateway.signer,
+    );
+    console.log("Pegged tokens: ", peggedTokenAddress);
+    console.log("Signer: ", await l2Gateway.signer.getAddress())
+    let tokenAmount = await peggedTokenContract.balanceOf(l2Gateway.signer.getAddress());
+    console.log("Token amount: ", tokenAmount);
+    const sendBackTx = await l2RestakerGateway.sendUnstakingTokens(
       accounts[3],
-      100,
+      10,
     );
-    console.log("Token sent", l1Token.address);
+    console.log("Token sent", liquidityToken.address);
+
+
     await sendBackTx.wait();
 
     const backEvents = await l2Bridge.queryFilter(
@@ -243,14 +387,14 @@ describe("Contract deployment and interaction", function () {
       "Error",
       receive_tx.blockNumber,
     );
-    const gatewayBackEvents = await l1Gateway.queryFilter(
+    const gatewayBackEvents = await l1RestakerGateway.queryFilter(
         {
           address: l2Gateway.address,
           topics: [
-            ethers.utils.id("ReceivedTokens(address,address,uint256)")
+            ethers.utils.id("TokensUnstaked(address,uint256)")
           ]
         },
-      receive_tx.blockNumber,
+        receive_tx.blockNumber,
     );
 
     console.log("Bridge back events: ", bridgeBackEvents);

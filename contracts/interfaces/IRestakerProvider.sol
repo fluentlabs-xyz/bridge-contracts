@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-interface IRestaker {
+interface IRestakerProvider {
     event Staked(address indexed staker, uint256 amount, uint256 shares);
     event Unstaked(
         address indexed staker,
