@@ -12,6 +12,7 @@ describe("Contract deployment and interaction", function () {
   let l1RestakerGateway, l2RestakerGateway;
   let restakerPool;
   let liquidityToken;
+  const RESTAKER_PROVIDER = "RESTAKER_PROVIDER"
 
   before(async () => {
     [l1Gateway, l1Bridge, l1Implementation, l1Factory] = await SetUpChain(
@@ -106,7 +107,7 @@ describe("Contract deployment and interaction", function () {
     );
     await liquidityToken.deployed();
 
-    let updateRatio = await ratioFeed.updateRatio(liquidityToken.address, 10);
+    let updateRatio = await ratioFeed.updateRatio(liquidityToken.address, 1000);
     await updateRatio.wait();
 
     console.log("Liquidity Token: ", liquidityToken.address)
@@ -151,8 +152,77 @@ describe("Contract deployment and interaction", function () {
     await restakerGateway.deployed();
     console.log("REstaking Pool, ", restakingPool.address)
 
+    const EigenPodMock    = await ethers.getContractFactory("EigenPodMock");
+    let eigenPodMock = await EigenPodMock.connect(l1Signer).deploy(
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        0
+    )
+    await eigenPodMock.deployed();
+
+    const UpgradeableBeacon = await ethers.getContractFactory('UpgradeableBeacon');
+    let upgradeableBeacon = await UpgradeableBeacon.connect(l1Signer).deploy(
+        eigenPodMock.address,
+        await l1Signer.getAddress()
+    );
+    await upgradeableBeacon.deployed();
+
+    const EigenPodManagerMock    = await ethers.getContractFactory("EigenPodManagerMock");
+    let eigenPodManagerMock = await EigenPodManagerMock.connect(l1Signer).deploy(
+        "0x0000000000000000000000000000000000000000",
+        upgradeableBeacon.address,
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+    )
+    await eigenPodManagerMock.deployed();
+
+    const DelegationManagerMock    = await ethers.getContractFactory("DelegationManagerMock");
+    let delegationManagerMock = await DelegationManagerMock.connect(l1Signer).deploy()
+    await delegationManagerMock.deployed();
+
+    const RestakerFacets    = await ethers.getContractFactory("RestakerFacets");
+    let restakerFacets = await RestakerFacets.connect(l1Signer).deploy(
+        l1Signer.getAddress(),
+        eigenPodManagerMock.address,
+        delegationManagerMock.address,
+    );
+    await restakerFacets.deployed();
+    console.log("RestakerFacets: ", restakerFacets.address);
+
+    const Restaker = await ethers.getContractFactory('Restaker');
+    let restaker = await Restaker.connect(l1Signer).deploy();
+    await restaker.deployed();
+
+    console.log("Restaker: ", restaker.address);
+
+
+    upgradeableBeacon = await UpgradeableBeacon.connect(l1Signer).deploy(
+        restaker.address,
+        await l1Signer.getAddress()
+    );
+    await upgradeableBeacon.deployed();
+
+    console.log("UpgradeableBeacon: ", upgradeableBeacon.address);
+
+    const RestakerDeployer = await ethers.getContractFactory("RestakerDeployer");
+    let restakerDeployer = await RestakerDeployer.connect(l1Signer).deploy(
+        upgradeableBeacon.address,
+        restakerFacets.address,
+    );
+    await restakerDeployer.deployed();
+
+    console.log("RestakerDeployer: ", restakerDeployer.address);
+
+    let setDeployer = await protocolConfig.setRestakerDeployer(restakerDeployer.address)
+    await setDeployer.wait()
+
     const authTx = await tokenFactory.transferOwnership(restakerGateway.address);
     await authTx.wait();
+
+
+    let addRestaker = await restakingPool.addRestaker(RESTAKER_PROVIDER);
+    await addRestaker.wait()
 
     return [restakerGateway, restakingPool, liquidityToken, tokenFactory, peggedToken];
   }
@@ -261,8 +331,6 @@ describe("Contract deployment and interaction", function () {
     const approve_tx = await l1Token.approve(l1Gateway.address, 100);
     await approve_tx.wait();
 
-    console.log("Provider", l1Gateway.provider);
-
     console.log("Token send");
 
     let amount = await liquidityToken.convertToAmount(1);
@@ -271,7 +339,7 @@ describe("Contract deployment and interaction", function () {
     const send_tx = await l1RestakerGateway.sendRestakedTokens(
         l2Gateway.signer.getAddress(),
         {
-          value: "1000000000000000000"
+          value: "32000000000000000000"
         },
     );
     console.log("Token sent", liquidityToken.address);
@@ -325,6 +393,30 @@ describe("Contract deployment and interaction", function () {
     expect(bridge_events.length).to.equal(1);
     console.log("Gateway events: ", gateway_events);
     expect(gateway_events.length).to.equal(1);
+
+    let bd = await restakerPool
+        .batchDeposit(
+            RESTAKER_PROVIDER,
+            [
+              '0xb8ed0276c4c631f3901bafa668916720f2606f58e0befab541f0cf9e0ec67a8066577e9a01ce58d4e47fba56c516f25b',
+            ],
+            [
+              '0x927b16171b51ca4ccab59de07ea20dacc33baa0f89f06b6a762051cac07233eb613a6c272b724a46b8145850b8851e4a12eb470bfb140e028ae0ac794f3a890ec4fac33910d338343f059d93a6d688238510c147f155d984de7c01daa0d3241b',
+            ],
+            [
+              '0x50021ea68edb12aaa54fc8a2706b2f4b1d35d1406512fc6de230e0ea0391cf97',
+            ]
+        );
+
+    await bd.wait();
+
+
+    let claim = await restakerPool
+        .claimRestaker(
+            RESTAKER_PROVIDER,
+           0
+        );
+    await claim.wait()
 
     const tokenArtifact = await artifacts.readArtifact("ERC20PeggedToken");
     const tokenAbi = tokenArtifact.abi;
@@ -403,5 +495,10 @@ describe("Contract deployment and interaction", function () {
     expect(bridgeBackEvents.length).to.equal(1);
     console.log("Gateway back events: ", gatewayBackEvents);
     expect(gatewayBackEvents.length).to.equal(1);
+
+
+    let unstake = await restakerPool
+        .distributeUnstakes();
+    await unstake.wait()
   });
 });

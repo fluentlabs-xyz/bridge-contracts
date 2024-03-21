@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 import "../Configurable.sol";
@@ -9,7 +9,9 @@ import "../interfaces/IEigenPodManager.sol";
 import "./IRestaker.sol";
 import "./IRestakerFacets.sol";
 
-contract RestakerFacets is OwnableUpgradeable, IRestakerFacets {
+import "hardhat/console.sol";
+
+contract RestakerFacets is Ownable, IRestakerFacets {
     mapping(bytes4 => FuncTarget) internal _selectorToTarget;
     IEigenPodManager internal _podManager;
     IDelegationManager internal _delegationManager;
@@ -20,16 +22,11 @@ contract RestakerFacets is OwnableUpgradeable, IRestakerFacets {
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-
-    function initialize(
+    constructor(
         address owner,
         IEigenPodManager podManager,
         IDelegationManager delegationManager
-    ) external initializer {
-        __Ownable_init();
+    ) Ownable(owner)  {
         transferOwnership(owner);
         __RestakerFacets_init(podManager, delegationManager);
     }
@@ -37,7 +34,7 @@ contract RestakerFacets is OwnableUpgradeable, IRestakerFacets {
     function __RestakerFacets_init(
         IEigenPodManager podManager,
         IDelegationManager delegationManager
-    ) internal onlyInitializing {
+    ) internal {
         _requireNotZero(address(podManager));
         _requireNotZero(address(delegationManager));
 

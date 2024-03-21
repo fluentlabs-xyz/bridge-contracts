@@ -4,8 +4,6 @@ pragma solidity ^0.8.0;
 
 import {IERC20Gateway} from "./interfaces/IERC20Gateway.sol";
 import {Rollup} from "./Rollup.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "hardhat/console.sol";

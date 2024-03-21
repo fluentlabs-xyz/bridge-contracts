@@ -2,11 +2,14 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 import "@openzeppelin/contracts/utils/Address.sol";
 
 import "../interfaces/IEigenPodManager.sol";
 import "./IRestaker.sol";
 import "./IRestakerFacets.sol";
+
+import "hardhat/console.sol";
 
 contract Restaker is OwnableUpgradeable, IRestaker {
     IRestakerFacets internal _facets;
