@@ -17,7 +17,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Gateway} from "./ERC20Gateway.sol";
 
 contract RestakerGateway is Ownable, ERC20Gateway {
-    address payable public restakerContract;
+    address public restakerPool;
     address public liquidityToken;
 
     event TokensRestaked(
@@ -37,7 +37,13 @@ contract RestakerGateway is Ownable, ERC20Gateway {
         address payable _restakerPoolContract,
         address _tokenFactory
     ) payable ERC20Gateway(_bridgeContract, _tokenFactory) {
-        restakerContract = _restakerPoolContract;
+        restakerPool = _restakerPoolContract;
+    }
+
+    function setRestakerPool(
+        address _restakerPool
+    ) external payable onlyOwner {
+        restakerPool = _restakerPool;
     }
 
     function setLiquidityToken(
@@ -47,7 +53,7 @@ contract RestakerGateway is Ownable, ERC20Gateway {
     }
 
     function sendRestakedTokens(address to) external payable {
-        address tokenContract = IRestakingPool(restakerContract).getLiquidityToken();
+        address tokenContract = IRestakingPool(restakerPool).getLiquidityToken();
 
 
         IERC20 token = IERC20(tokenContract);
@@ -58,7 +64,7 @@ contract RestakerGateway is Ownable, ERC20Gateway {
 
         uint256 balanceBefore = token.balanceOf(address(this));
 
-        IRestakingPool(restakerContract).stake{value: stakedAmount}();
+        IRestakingPool(restakerPool).stake{value: stakedAmount}();
 
         uint256 mintedTokens = token.balanceOf(address(this)) - balanceBefore;
 
@@ -112,14 +118,14 @@ contract RestakerGateway is Ownable, ERC20Gateway {
         uint256 _shares
     ) external payable onlyBridgeSender {
 
-        address tokenContract = IRestakingPool(restakerContract).getLiquidityToken();
+        address tokenContract = IRestakingPool(restakerPool).getLiquidityToken();
         ILiquidityToken token = ILiquidityToken(tokenContract);
 
         uint256 amount = token.convertToAmount(_shares);
 
 
 
-        IRestakingPool(restakerContract).unstakeFrom(address(this), _to, _shares);
+        IRestakingPool(restakerPool).unstakeFrom(address(this), _to, _shares);
 
         emit TokensUnstaked(_to, _shares);
     }
