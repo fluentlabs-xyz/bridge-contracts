@@ -5,11 +5,11 @@ describe("Contract deployment and interaction", function () {
   let l1Token;
   let l1Gateway, l2Gateway;
   let l1Bridge, l2Bridge;
-  // let l1Url = 'http://127.0.0.1:8545/';
-  let l1Url =
-    "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
-  // let l2Url = 'http://127.0.0.1:8546/';
-  let l2Url = "https://rpc.dev1.fluentlabs.xyz/";
+  let l1Url = 'http://127.0.0.1:8545/';
+  // let l1Url =
+  //   "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
+  let l2Url = 'http://127.0.0.1:8546/';
+  // let l2Url = "https://rpc.dev1.fluentlabs.xyz/";
   let l1Implementation, l2Implementation;
   let rollup;
 
@@ -24,8 +24,8 @@ describe("Contract deployment and interaction", function () {
 
     let providerL1 = new ethers.providers.JsonRpcProvider(l1Url); // Replace with your node's RPC URL
     const privateKey = process.env.PRIVATE_KEY;
-    const signerL1 = new ethers.Wallet(privateKey, providerL1);
-    // let signerL1 = providerL1.getSigner();
+    // const signerL1 = new ethers.Wallet(privateKey, providerL1);
+    let signerL1 = providerL1.getSigner();
     const accounts = await hre.ethers.getSigners();
 
     const Token = await ethers.getContractFactory("MockERC20Token");

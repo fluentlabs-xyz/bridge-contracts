@@ -3,8 +3,8 @@ const { BigNumber } = require("ethers");
 const { expect } = require("chai");
 
 async function main() {
-  // let l2Url = "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk"
-  const l2Url = "http://127.0.0.1:8546/";
+  let l2Url = "https://rpc.dev1.fluentlabs.xyz/";
+  // const l2Url = "http://127.0.0.1:8546/";
   let provider = new ethers.providers.JsonRpcProvider(l2Url);
 
   const privateKey = process.env.PRIVATE_KEY;

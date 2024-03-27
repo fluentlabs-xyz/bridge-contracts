@@ -60,8 +60,6 @@ contract RestakerGateway is Ownable, ERC20Gateway {
 
         uint256 stakedAmount = msg.value;
 
-
-
         uint256 balanceBefore = token.balanceOf(address(this));
 
         IRestakingPool(restakerPool).stake{value: stakedAmount}();

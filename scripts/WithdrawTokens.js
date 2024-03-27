@@ -8,6 +8,8 @@ async function main() {
   const privateKey = process.env.PRIVATE_KEY;
   let provider = new ethers.providers.JsonRpcProvider(provider_url);
 
+
+
   const signer = new ethers.Wallet(privateKey, provider);
 
   let balance = await signer.getBalance();
@@ -42,7 +44,7 @@ async function main() {
   console.log("Next pending transaction: ", pendingNonce);
   const approve_tx = await l2Token.approve(l2GatewayAddress, 100, {
     // nonce: nonce - 1,
-    // gasLimit: 100000,
+    gasLimit: 100000,
     // maxPriorityFeePerGas: BigNumber.from(7142504941).mul(3),
     // maxFeePerGas: BigNumber.from(12267313598).mul(3),
   });
@@ -61,7 +63,7 @@ async function main() {
     100,
     {
       nonce,
-      // gasLimit: 1000000,
+      gasLimit: 100000,
       // maxPriorityFeePerGas: BigNumber.from(7142504941).mul(2),
       // maxFeePerGas: BigNumber.from(12267313598).mul(2),
     },
