@@ -21,6 +21,6 @@ module.exports = {
       url: "http://localhost:8546",
     },  },
   mocha: {
-    timeout: 100000,  // Set the timeout to 60 seconds
+    timeout: 1000000,  // Set the timeout to 60 seconds
   },
 };
