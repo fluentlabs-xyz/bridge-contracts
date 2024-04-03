@@ -1,14 +1,17 @@
 const { ethers } = require("hardhat");
+const {BigNumber} = require("ethers");
 
 async function main() {
-  // let provider_url =
-  //   "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
-  const provider_url = "http://127.0.0.1:8545/";
+  let provider_url =
+      "https://rpc.sepolia.org/"
+    // "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
+  // const provider_url = "http://127.0.0.1:8545/";
 
   const privateKey = process.env.PRIVATE_KEY;
   let provider = new ethers.providers.JsonRpcProvider(provider_url);
 
-  const signer = new ethers.Wallet(privateKey, provider);
+  let signer = new ethers.Wallet(privateKey, provider);
+  // signer = provider.getSigner()
 
   await deployL1(provider, signer);
 }
@@ -31,6 +34,8 @@ async function deployL1(provider, signer) {
 
   console.log("Balance: ", balanceWei);
 
+  let awaiting = []
+
   const Token = await ethers.getContractFactory("MockERC20Token");
   let l1Token = await Token.connect(signer).deploy(
     "Mock Token",
@@ -38,13 +43,15 @@ async function deployL1(provider, signer) {
     ethers.utils.parseEther("1000000"),
     await signer.getAddress(),
   );
-  await l1Token.deployed();
+  awaiting.push(l1Token.deployed());
 
-  const gasPrice = await ethers.provider.getGasPrice();
+  console.log("L1 token: ", l1Token.address)
+
+
 
   const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
   let peggedToken = await PeggedToken.connect(signer).deploy();
-  let tx = await peggedToken.deployed();
+  awaiting.push(peggedToken.deployed());
 
   // console.log("Contract: ", tx);
 
@@ -56,7 +63,7 @@ async function deployL1(provider, signer) {
 
   const RollupContract = await ethers.getContractFactory("Rollup");
   let rollup = await RollupContract.connect(signer).deploy();
-  await rollup.deployed();
+  awaiting.push(rollup.deployed());
 
   console.log(await estimate_gas(provider, rollup));
   // let rollup = await RollupContract.connect(signer).attach("0xb592Ed460f5Ab1b2eF874bE5e3d0FbE6950127Da");
@@ -68,14 +75,16 @@ async function deployL1(provider, signer) {
     signer.getAddress(),
     rollupAddress,
   );
-  await bridge.deployed();
+  awaiting.push(bridge.deployed());
 
   console.log(await estimate_gas(provider, bridge));
   // let bridge = await BridgeContract.connect(signer).attach("0xf70f7cADD71591e96BD696716A4A2bA6286c82e8");
   console.log("Bridge: ", bridge.address);
 
-  let setBridge = await rollup.setBridge(bridge.address);
-  await setBridge.wait();
+  let setBridge = await rollup.setBridge(bridge.address, {
+
+  });
+  awaiting.push(setBridge.wait());
 
   const TokenFactoryContract =
     await ethers.getContractFactory("ERC20TokenFactory");
@@ -83,7 +92,7 @@ async function deployL1(provider, signer) {
   let tokenFactory = await TokenFactoryContract.connect(signer).deploy(
     peggedToken.address,
   );
-  await tokenFactory.deployed();
+  awaiting.push(tokenFactory.deployed());
   console.log("TokenFactory: ", tokenFactory.address);
 
   console.log(await estimate_gas(provider, tokenFactory));
@@ -95,13 +104,18 @@ async function deployL1(provider, signer) {
 
   console.log("token factory owner: ", await tokenFactory.owner());
   const authTx = await tokenFactory.transferOwnership(erc20Gateway.address);
-  await authTx.wait();
+  awaiting.push(authTx.wait());
   console.log("token factory owner: ", await tokenFactory.owner());
 
-  await erc20Gateway.deployed();
+  awaiting.push(erc20Gateway.deployed());
   console.log("Gateway: ", erc20Gateway.address);
 
   console.log(await estimate_gas(provider, erc20Gateway));
+
+  await Promise.all(awaiting)
+
+  console.log("Gateway contracts deployed")
+
   return {
     bridge: bridge.address,
     erc20Gateway: erc20Gateway.address,
@@ -113,9 +127,11 @@ async function deployL1(provider, signer) {
 
 module.exports = deployL1;
 
-// main()
-//   .then(() => process.exit(0))
-//   .catch((error) => {
-//     console.error(error);
-//     process.exit(1);
-//   });
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+}

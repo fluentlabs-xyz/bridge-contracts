@@ -9,7 +9,6 @@ async function main() {
   let provider = new ethers.providers.JsonRpcProvider(provider_url);
 
 
-
   const signer = new ethers.Wallet(privateKey, provider);
 
   let balance = await signer.getBalance();
