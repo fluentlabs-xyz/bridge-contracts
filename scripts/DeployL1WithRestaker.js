@@ -2,6 +2,7 @@ const { ethers } = require("hardhat");
 const {BigNumber} = require("ethers");
 
 const deployL1 = require("./DeployL1");
+const deployRestakerL1 = require("./DeployRestakerL1");
 
 async function main() {
   let provider_url =
@@ -17,7 +18,7 @@ async function main() {
 
   let addresses = await deployL1(provider, signer);
 
-
+  await deployRestakerL1(provider, signer, addresses.bridge)
 }
 
 

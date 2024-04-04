@@ -4,15 +4,15 @@ const {BigNumber} = require("ethers");
 const RESTAKER_PROVIDER = "RESTAKER_PROVIDER"
 
 async function main() {
-  // let provider_url =
-  //   "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
-  let provider_url = "http://127.0.0.1:8545/";
+  let provider_url =
+    "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
+  // let provider_url = "http://127.0.0.1:8545/";
 
   const privateKey = process.env.PRIVATE_KEY;
   let provider = new ethers.providers.JsonRpcProvider(provider_url);
 
   let signer = new ethers.Wallet(privateKey, provider);
-  signer = provider.getSigner()
+  // signer = provider.getSigner()
 
   await deployRestakerL1(provider, signer, "0x5D53ec5B0eB1dCBaAe425A0c5ae79354467cd6fA");
 }
@@ -42,14 +42,7 @@ async function deployRestakerL1(provider, l1Signer, bridgeAddress) {
   awaiting.push(ratioFeed.deployed());
   console.log("Ratio feed: ", ratioFeed.address);
 
-  // let nonce = await l1Signer.getTransactionCount();
-  // console.log("Next transaction: ", nonce);
-  // let pendingNonce = await l1Signer.getTransactionCount("pending");
-  // console.log("Next pending transaction: ", pendingNonce);
-
-  let setRatioFeed = await protocolConfig.setRatioFeed(ratioFeed.address, {
-    // nonce: nonce,
-  });
+  let setRatioFeed = await protocolConfig.setRatioFeed(ratioFeed.address);
   console.log("Set ratio feet: ", setRatioFeed);
   awaiting.push(setRatioFeed.wait())
 
@@ -63,21 +56,13 @@ async function deployRestakerL1(provider, l1Signer, bridgeAddress) {
   awaiting.push(liquidityToken.deployed());
 
   console.log("LiquidutyToken: ", liquidityToken.address)
-  //
-  // let nonce = await l1Signer.getTransactionCount();
-  // console.log("Next transaction: ", nonce);
-  // let pendingNonce = await l1Signer.getTransactionCount("pending");
-  // console.log("Next pending transaction: ", pendingNonce);
 
-  let updateRatio = await ratioFeed.updateRatio(liquidityToken.address, 1000, {
-    // nonce,
-  });
+
+  let updateRatio = await ratioFeed.updateRatio(liquidityToken.address, 1000);
   awaiting.push(updateRatio.wait());
 
   console.log("Liquidity Token: ", liquidityToken.address)
-  let setToken = await protocolConfig.setLiquidityToken(liquidityToken.address, {
-    // nonce
-  })
+  let setToken = await protocolConfig.setLiquidityToken(liquidityToken.address)
   awaiting.push(setToken.wait())
 
   const RestakingPool = await ethers.getContractFactory("RestakingPool");
@@ -90,10 +75,7 @@ async function deployRestakerL1(provider, l1Signer, bridgeAddress) {
   awaiting.push(restakingPool.deployed());
   console.log("Restaking pool: ", restakingPool.address)
 
-  let setPool= await protocolConfig.setRestakingPool(restakingPool.address, {
-    maxPriorityFeePerGas: BigNumber.from(7142504941).mul(3),
-    maxFeePerGas: BigNumber.from(12267313598).mul(3),
-  })
+  let setPool= await protocolConfig.setRestakingPool(restakingPool.address)
   awaiting.push(setPool.wait())
   console.log("settedPool");
 
@@ -136,11 +118,6 @@ async function deployRestakerL1(provider, l1Signer, bridgeAddress) {
   )
   awaiting.push(eigenPodMock.deployed());
   console.log("EigenPodMock: ", eigenPodMock.address);
-
-  let nonce = await l1Signer.getTransactionCount();
-  console.log("Next transaction: ", nonce);
-  nonce = await l1Signer.getTransactionCount("pending");
-  console.log("Next pending transaction: ", nonce);
 
   const UpgradeableBeacon = await ethers.getContractFactory('UpgradeableBeacon');
   let upgradeableBeacon = await UpgradeableBeacon.connect(l1Signer).deploy(
@@ -203,24 +180,18 @@ async function deployRestakerL1(provider, l1Signer, bridgeAddress) {
   console.log("RestakerDeployer: ", restakerDeployer.address);
 
   let setDeployer = await protocolConfig.setRestakerDeployer(restakerDeployer.address, {
-    maxPriorityFeePerGas: BigNumber.from(7142504941).mul(3),
-    maxFeePerGas: BigNumber.from(12267313598).mul(3),
   })
   awaiting.push(setDeployer.wait())
   console.log("setDeployer")
 
   const authTx = await tokenFactory.transferOwnership(restakerGateway.address, {
-    maxPriorityFeePerGas: BigNumber.from(7142504941).mul(3),
-    maxFeePerGas: BigNumber.from(12267313598).mul(3),
   });
   awaiting.push(authTx.wait());
 
   console.log("authTx")
 
   let addRestaker = await restakingPool.addRestaker(RESTAKER_PROVIDER, {
-    maxPriorityFeePerGas: BigNumber.from(7142504941).mul(3),
-    maxFeePerGas: BigNumber.from(12267313598).mul(3),
-    gasLimit: 500000,
+    gasLimit: 600000,
   });
   awaiting.push(addRestaker.wait())
   console.log("addRestaker")
