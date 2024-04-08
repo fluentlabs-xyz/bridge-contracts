@@ -66,6 +66,12 @@ describe("Bridge", function () {
 
     await receive_tx.wait();
 
+    const error_events = await bridge.queryFilter(
+        "Error",
+        receive_tx.blockNumber,
+    );
+    console.log("Error: ", error_events)
+
     const events = await bridge.queryFilter(
       "ReceivedMessage",
       receive_tx.blockNumber,

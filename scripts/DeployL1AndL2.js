@@ -26,7 +26,7 @@ async function main() {
     peggedToken: l1Implementation,
     tokenFactory: l1Factory,
   } = await deployL1(l1Provider, l1Signer);
-  console.log("Deploy L1 contracts:");
+  console.log("Deploy L2 contracts:");
   let {
     bridge: l2Bridge,
     erc20Gateway: l2Gateway,

@@ -1,4 +1,4 @@
-import {ILiquidityToken} from "../interfaces/ILiquidityToken.sol";
+import {ILiquidityToken} from "../restaker/interfaces/ILiquidityToken.sol";
 import {IRestakerProvider} from "../interfaces/IRestakerProvider.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 

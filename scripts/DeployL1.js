@@ -16,16 +16,6 @@ async function main() {
   await deployL1(provider, signer);
 }
 
-async function estimate_gas(provider, contract) {
-  const gasPrice = await provider.getGasPrice();
-
-  // Estimate gas limit
-  const gasLimit = await contract.deployTransaction.gasLimit;
-
-  // Calculate deployment cost
-  return ethers.utils.formatEther(gasLimit.mul(gasPrice));
-}
-
 async function deployL1(provider, signer) {
   const address = await signer.getAddress();
   console.log("Signer: ", address);
@@ -43,7 +33,7 @@ async function deployL1(provider, signer) {
     ethers.utils.parseEther("1000000"),
     await signer.getAddress(),
   );
-  awaiting.push(l1Token.deployed());
+  await l1Token.deployed();
 
   console.log("L1 token: ", l1Token.address)
 
@@ -51,40 +41,33 @@ async function deployL1(provider, signer) {
 
   const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
   let peggedToken = await PeggedToken.connect(signer).deploy();
-  awaiting.push(peggedToken.deployed());
+  await peggedToken.deployed();
 
   // console.log("Contract: ", tx);
 
-  console.log(await estimate_gas(provider, peggedToken));
-
   // let peggedToken = await PeggedToken.connect(signer).attach("0x6Ff08946Cef705D7bBC5deef4E56004e2365979f");
   console.log("Pegged token: ", peggedToken.address);
-  const BridgeContract = await ethers.getContractFactory("Bridge");
 
   const RollupContract = await ethers.getContractFactory("Rollup");
   let rollup = await RollupContract.connect(signer).deploy();
-  awaiting.push(rollup.deployed());
+  await rollup.deployed();
 
-  console.log(await estimate_gas(provider, rollup));
   // let rollup = await RollupContract.connect(signer).attach("0xb592Ed460f5Ab1b2eF874bE5e3d0FbE6950127Da");
 
   let rollupAddress = rollup.address;
   console.log("Rollup address: ", rollupAddress);
 
+  const BridgeContract = await ethers.getContractFactory("Bridge");
   let bridge = await BridgeContract.connect(signer).deploy(
     signer.getAddress(),
     rollupAddress,
   );
-  awaiting.push(bridge.deployed());
+  await bridge.deployed();
 
-  console.log(await estimate_gas(provider, bridge));
   // let bridge = await BridgeContract.connect(signer).attach("0xf70f7cADD71591e96BD696716A4A2bA6286c82e8");
   console.log("Bridge: ", bridge.address);
 
-  let setBridge = await rollup.setBridge(bridge.address, {
 
-  });
-  awaiting.push(setBridge.wait());
 
   const TokenFactoryContract =
     await ethers.getContractFactory("ERC20TokenFactory");
@@ -92,27 +75,24 @@ async function deployL1(provider, signer) {
   let tokenFactory = await TokenFactoryContract.connect(signer).deploy(
     peggedToken.address,
   );
-  awaiting.push(tokenFactory.deployed());
+  await tokenFactory.deployed();
   console.log("TokenFactory: ", tokenFactory.address);
 
-  console.log(await estimate_gas(provider, tokenFactory));
   const ERC20GatewayContract = await ethers.getContractFactory("ERC20Gateway");
   let erc20Gateway = await ERC20GatewayContract.connect(signer).deploy(
     bridge.address,
     tokenFactory.address,
   );
-
-  console.log("token factory owner: ", await tokenFactory.owner());
-  const authTx = await tokenFactory.transferOwnership(erc20Gateway.address);
-  awaiting.push(authTx.wait());
-  console.log("token factory owner: ", await tokenFactory.owner());
-
-  awaiting.push(erc20Gateway.deployed());
+  await erc20Gateway.deployed();
   console.log("Gateway: ", erc20Gateway.address);
 
-  console.log(await estimate_gas(provider, erc20Gateway));
+  const authTx = await tokenFactory.transferOwnership(erc20Gateway.address);
+  await authTx.wait()
+  console.log("Transferred ownership")
+  let setBridge = await rollup.setBridge(bridge.address);
+  await setBridge.wait();
 
-  await Promise.all(awaiting)
+  // await Promise.all(awaiting)
 
   console.log("Gateway contracts deployed")
 

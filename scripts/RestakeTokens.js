@@ -2,8 +2,10 @@ const { ethers } = require("hardhat");
 const { expect } = require("chai");
 
 async function main() {
-  // let l1Url = "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk"
-  const l1Url = "http://127.0.0.1:8545/";
+  let l1Url =
+      // "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk"
+      "https://ethereum-holesky-rpc.publicnode.com";
+  // l1Url = "http://127.0.0.1:8545/";
   let provider = new ethers.providers.JsonRpcProvider(l1Url);
   const privateKey = process.env.PRIVATE_KEY;
 

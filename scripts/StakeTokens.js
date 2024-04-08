@@ -4,7 +4,8 @@ const {expect} = require("chai");
 
 async function main() {
     let provider_url =
-        "https://rpc2.sepolia.org";
+        // "https://rpc2.sepolia.org";
+        "https://ethereum-holesky-rpc.publicnode.com";
     // "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
     // provider_url = "http://127.0.0.1:8545/"
 
@@ -19,16 +20,16 @@ async function main() {
     const BridgeContract = await ethers.getContractFactory("Bridge");
 
     // let l1Bridge = await BridgeContract.connect(signer).attach("0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9");
-    let l1Bridge = await BridgeContract.connect(signer).attach("0xf70f7cADD71591e96BD696716A4A2bA6286c82e8");
+    let l1Bridge = await BridgeContract.connect(signer).attach("0x9a7D9579f16A9808016981bd92F8e8e3E933a842");
 
     const RestakingPoolContract = await ethers.getContractFactory("RestakingPool");
 
     // let restakingPool = await RestakingPoolContract.connect(signer).attach("0x9A676e781A523b5d0C0e43731313A708CB607508");
-    let restakingPool = await RestakingPoolContract.connect(signer).attach("0xfae844C4deb40A72015e7A198C7B87C8B3d06b2A");
+    let restakingPool = await RestakingPoolContract.connect(signer).attach("0x7B578632aB547B773A23421b3bBeF391967063aB");
 
 
     // const RestakerGatewayAddress = "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c";
-    const RestakerGatewayAddress = "0xedb4710b2cddc434973f45a06f4a5b975937756a";
+    const RestakerGatewayAddress = "0xfc5EC4f0D51B106332c1E0Ab06927708Ef6b84AB";
 
     let nonce = await signer.getTransactionCount();
     console.log("Next transaction: ", nonce);

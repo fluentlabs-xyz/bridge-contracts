@@ -23,4 +23,10 @@ module.exports = {
   mocha: {
     timeout: 1000000,  // Set the timeout to 60 seconds
   },
+  abiExporter: {
+    path: './abi',
+    clear: true,
+    flat: true,
+    spacing: 2
+  }
 };

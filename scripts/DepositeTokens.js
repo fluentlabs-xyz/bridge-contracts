@@ -3,22 +3,19 @@ const { BigNumber } = require("ethers");
 
 async function main() {
   let provider_url =
-      "https://rpc2.sepolia.org";
+      "https://ethereum-holesky-rpc.publicnode.com";
+      // "https://rpc2.sepolia.org";
     // "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
-  // const provider_url = "http://127.0.0.1:8545/"
 
   const privateKey = process.env.PRIVATE_KEY;
   let provider = new ethers.providers.JsonRpcProvider(provider_url);
-
-
-
 
   console.log(provider_url)
   const signer = new ethers.Wallet(privateKey, provider);
 
   const Token = await ethers.getContractFactory("MockERC20Token");
   let l1Token = await Token.connect(signer).attach(
-    "0xD61e2a971EEC09cCdDc0c89217dd6D2e49017685",
+    "0x9C84707dF32A1c7bBD96011D922E2b0CF5418C1D",
   );
   console.log(
       "Token: ",
@@ -26,8 +23,8 @@ async function main() {
       await l1Token.name(),
       await l1Token.balanceOf(await signer.getAddress()),
   );
-  const l1GatewayAddress = "0x742318E6A71b400c335593cC65099aEc30EB6503";
-  const l2GatewayAddress = "0x59Ce0cAe2987C0229D5237cEB89dD30422E9a67c";
+  let l1GatewayAddress = "0xDd4A4591b7732B33Ff609AE8FB6ab73F54B3079E";
+  // l1GatewayAddress = "0x43E9dbA5b512774D6Baf41a2c64DD8e4dcff0970";
 
   let nonce = await signer.getTransactionCount();
   console.log("Next transaction: ", nonce);
@@ -35,9 +32,6 @@ async function main() {
   console.log("Next pending transaction: ", pendingNonce);
   const approve_tx = await l1Token.approve(l1GatewayAddress, 10000, {
     nonce,
-    gasLimit: 100000,
-    maxPriorityFeePerGas: BigNumber.from(7142504941).mul(3),
-    maxFeePerGas: BigNumber.from(12267313598).mul(3),
   });
   console.log("Approve: ", approve_tx);
   await approve_tx.wait();
@@ -53,10 +47,7 @@ async function main() {
     await signer.getAddress(),
     10000,
     {
-      gasLimit: 1000000,
       nonce,
-      maxPriorityFeePerGas: BigNumber.from(21427514823).mul(3),
-      maxFeePerGas: BigNumber.from(36801940794).mul(3),
     },
   );
 

@@ -9,44 +9,57 @@ async function main() {
     const privateKey = process.env.PRIVATE_KEY;
     const signer = new ethers.Wallet(privateKey, provider);
 
-    const bridgeAddress = "0x93d0Efe8d5199E87d8545710abC22d29594bBfEd"
+    const bridgeAddress = "0x492bF40bbd967fF54af052e8364D83Ae509436b1"
 
-    await deployGatewayL2(provider, signer, bridgeAddress);
+    console.log("Signer: ", signer.address)
+
+    await deployRestakerL2(provider, signer, bridgeAddress);
 }
 
-async function deployGatewayL2(provider, l2Signer, bridgeAddress) {
+async function deployRestakerL2(provider, l2Signer, bridgeAddress) {
 
-    // const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
-    // let peggedToken = await PeggedToken.connect(l2Signer).deploy();
-    // await peggedToken.deployed();
-    //
-    // const TokenFactoryContract =
-    //     await ethers.getContractFactory("ERC20TokenFactory");
-    // let tokenFactory = await TokenFactoryContract.connect(l2Signer).deploy(
-    //     peggedToken.address,
-    // );
-    // await tokenFactory.deployed();
-    //
-    // const RestakerGateway = await ethers.getContractFactory("RestakerGateway");
+    const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
+    let peggedToken = await PeggedToken.connect(l2Signer).deploy();
+    await peggedToken.deployed();
+
+    console.log("Pegged token: ", peggedToken.address)
+
+    const TokenFactoryContract =
+        await ethers.getContractFactory("ERC20TokenFactory");
+    let tokenFactory = await TokenFactoryContract.connect(l2Signer).deploy(
+        peggedToken.address,
+    );
+    await tokenFactory.deployed();
+
+    console.log("Token factory: ", tokenFactory.address)
+    const RestakerGateway = await ethers.getContractFactory("RestakerGateway");
 
     let restakerGateway = await RestakerGateway.connect(l2Signer).deploy(
         bridgeAddress,
         "0x0000000000000000000000000000000000000000",
-        // tokenFactory.address,
-        "0x4Ab4B3553596Ca19E462bc7a36b195625eb5770b"
+        tokenFactory.address,
     );
     await restakerGateway.deployed();
+
+    console.log("Restaker gateway: ", restakerGateway.address)
 
     const authTx = await tokenFactory.transferOwnership(restakerGateway.address);
     await authTx.wait();
 
-
+    return {
+        restakerGateway: restakerGateway.address,
+        tokenFactory: tokenFactory.address,
+        peggedToken: peggedToken.address
+    }
 }
 
-module.exports = deployGatewayL2;
-main()
-    .then(() => process.exit(0))
-    .catch((error) => {
-        console.error(error);
-        process.exit(1);
-    });
+module.exports = deployRestakerL2;
+
+if (require.main === module) {
+    main()
+        .then(() => process.exit(0))
+        .catch((error) => {
+            console.error(error);
+            process.exit(1);
+        });
+}
