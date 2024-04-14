@@ -86,6 +86,9 @@ describe("Bridge", function () {
     const new_balance = await hre.ethers.provider.getBalance(receiverAddress);
     expect(new_balance.sub(origin_balance)).to.be.eql(BigNumber.from(200));
 
+    let messageStatus = await bridge.receivedMessage(events[0].args.messageHash)
+    console.log("Message status: ", messageStatus)
+
     try {
       const repeat_receive_tx = await contractWithSigner.receiveMessage(
         "0x1111111111111111111111111111111111111111",

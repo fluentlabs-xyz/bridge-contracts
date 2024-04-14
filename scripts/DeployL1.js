@@ -67,13 +67,14 @@ async function deployL1(provider, signer) {
   // let bridge = await BridgeContract.connect(signer).attach("0xf70f7cADD71591e96BD696716A4A2bA6286c82e8");
   console.log("Bridge: ", bridge.address);
 
-
-
   const TokenFactoryContract =
     await ethers.getContractFactory("ERC20TokenFactory");
 
   let tokenFactory = await TokenFactoryContract.connect(signer).deploy(
-    peggedToken.address,
+      peggedToken.address,
+      {
+        gasLimit: 2000000,
+      }
   );
   await tokenFactory.deployed();
   console.log("TokenFactory: ", tokenFactory.address);
@@ -82,6 +83,9 @@ async function deployL1(provider, signer) {
   let erc20Gateway = await ERC20GatewayContract.connect(signer).deploy(
     bridge.address,
     tokenFactory.address,
+      {
+        gasLimit: 2000000,
+      }
   );
   await erc20Gateway.deployed();
   console.log("Gateway: ", erc20Gateway.address);

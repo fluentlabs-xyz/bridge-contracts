@@ -6,8 +6,7 @@ const deployRestakerL1 = require("./DeployRestakerL1");
 
 async function main() {
     let provider_url =
-        "https://rpc.sepolia.org/"
-        // "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
+        "https://ethereum-holesky-rpc.publicnode.com";
         // const provider_url = "http://127.0.0.1:8545/";
 
     const privateKey = process.env.PRIVATE_KEY;

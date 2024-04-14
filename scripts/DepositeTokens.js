@@ -15,7 +15,7 @@ async function main() {
 
   const Token = await ethers.getContractFactory("MockERC20Token");
   let l1Token = await Token.connect(signer).attach(
-    "0x9C84707dF32A1c7bBD96011D922E2b0CF5418C1D",
+    "0x341dCc885de61Ea0E75aa5FEB048D5a7a451620c",
   );
   console.log(
       "Token: ",
@@ -23,7 +23,7 @@ async function main() {
       await l1Token.name(),
       await l1Token.balanceOf(await signer.getAddress()),
   );
-  let l1GatewayAddress = "0xDd4A4591b7732B33Ff609AE8FB6ab73F54B3079E";
+  let l1GatewayAddress = "0xd14CF47e188f7042456CD1a0513bc4EBeB6235b2";
   // l1GatewayAddress = "0x43E9dbA5b512774D6Baf41a2c64DD8e4dcff0970";
 
   let nonce = await signer.getTransactionCount();

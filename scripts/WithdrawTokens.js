@@ -25,7 +25,7 @@ async function main() {
     //     ethers.utils.parseEther("1000000"),
     //     await signer.getAddress(),
     // )
-    .attach("0x3629492b992f876d20C3600bBc15077E9229D9bB");
+    .attach("0x03F46a07C673d40d2119F7D87582D099EAbCaC91");
 
   console.log(
     "Token: ",
@@ -34,7 +34,7 @@ async function main() {
     await l2Token.balanceOf(await signer.getAddress()),
   );
 
-  const l2GatewayAddress = "0x59Ce0cAe2987C0229D5237cEB89dD30422E9a67c";
+  const l2GatewayAddress = "0xd0D2F3Dc3d4b972467C3472fc31F48823B706dDb";
   const l1GatewayAddress = "0x742318E6A71b400c335593cC65099aEc30EB6503";
 
   let nonce = await signer.getTransactionCount();
@@ -42,7 +42,8 @@ async function main() {
   let pendingNonce = await signer.getTransactionCount("pending");
   console.log("Next pending transaction: ", pendingNonce);
   const approve_tx = await l2Token.approve(l2GatewayAddress, 100, {
-    // nonce: nonce - 1,
+    // nonce: nonce - 1
+,
     gasLimit: 100000,
     // maxPriorityFeePerGas: BigNumber.from(7142504941).mul(3),
     // maxFeePerGas: BigNumber.from(12267313598).mul(3),
@@ -62,7 +63,7 @@ async function main() {
     100,
     {
       nonce,
-      gasLimit: 100000,
+      // gasLimit: 100000,
       // maxPriorityFeePerGas: BigNumber.from(7142504941).mul(2),
       // maxFeePerGas: BigNumber.from(12267313598).mul(2),
     },

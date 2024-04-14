@@ -20,16 +20,16 @@ async function main() {
     const BridgeContract = await ethers.getContractFactory("Bridge");
 
     // let l1Bridge = await BridgeContract.connect(signer).attach("0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9");
-    let l1Bridge = await BridgeContract.connect(signer).attach("0x9a7D9579f16A9808016981bd92F8e8e3E933a842");
+    let l1Bridge = await BridgeContract.connect(signer).attach("0xb57E1486193eE29a7881c914A63eD44EcD040b07");
 
     const RestakingPoolContract = await ethers.getContractFactory("RestakingPool");
 
     // let restakingPool = await RestakingPoolContract.connect(signer).attach("0x9A676e781A523b5d0C0e43731313A708CB607508");
-    let restakingPool = await RestakingPoolContract.connect(signer).attach("0x7B578632aB547B773A23421b3bBeF391967063aB");
+    let restakingPool = await RestakingPoolContract.connect(signer).attach("0x09F7c2b1013B99C74ba580fF1d47fA8656ad0687");
 
 
     // const RestakerGatewayAddress = "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c";
-    const RestakerGatewayAddress = "0xfc5EC4f0D51B106332c1E0Ab06927708Ef6b84AB";
+    const RestakerGatewayAddress = "0xD771250Ba58dB7D1AEd61018D460F6e18e3d4a20";
 
     let nonce = await signer.getTransactionCount();
     console.log("Next transaction: ", nonce);

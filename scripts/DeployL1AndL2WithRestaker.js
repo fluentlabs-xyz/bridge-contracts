@@ -4,12 +4,12 @@ const deployL1WithRestaker = require("./DeployL1WithRestaker");
 const deployL2WithRestaker = require("./DeployL2WithRestaker");
 
 async function main() {
-  const l1Url= "http://127.0.0.1:8545"
-  // let l1Url =
-  //   "https://ethereum-holesky-rpc.publicnode.com";
+  // const l1Url= "http://127.0.0.1:8545"
+  let l1Url =
+    "https://ethereum-holesky-rpc.publicnode.com";
   let l1Provider = new ethers.providers.JsonRpcProvider(l1Url);
-  const l2Url= "http://127.0.0.1:8546/"
-  // const l2Url = "https://rpc.dev1.fluentlabs.xyz/";
+  // const l2Url= "http://127.0.0.1:8546/"
+  const l2Url = "https://rpc.dev1.fluentlabs.xyz/";
   let l2Provider = new ethers.providers.JsonRpcProvider(l2Url);
 
   const privateKey = process.env.PRIVATE_KEY;
@@ -58,6 +58,7 @@ async function main() {
     .attach(l2Gateway)
     .setOtherSide(l1Gateway, l1Implementation, l1Factory);
   await tx.wait();
+  console.log("Link erc20 gateway")
 
   const RestakerGateway = await ethers.getContractFactory("RestakerGateway");
   tx = await RestakerGateway.connect(l1Signer)
@@ -68,6 +69,7 @@ async function main() {
       .attach(l2restaker)
       .setOtherSide(l1restaker, l1RestakerImpl, l1RestakerFactory);
   await tx.wait();
+  console.log("Link restaker gateway")
 }
 if (require.main === module) {
   main()
