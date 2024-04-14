@@ -11,7 +11,9 @@ import "hardhat/console.sol";
 contract Bridge {
     uint256 public nonce;
 
-    mapping(bytes32 => bool) public receivedMessage;
+    enum MessageStatus {None, Failed, Success}
+
+    mapping(bytes32 => MessageStatus) public receivedMessage;
     mapping(bytes32 => bool) public sentMessage;
     address public bridgeAuthority;
     address public rollup;
@@ -83,7 +85,7 @@ contract Bridge {
         );
 
         bytes32 messageHash = keccak256(encodedMessage);
-        require(!receivedMessage[messageHash], "Message already received");
+        require(receivedMessage[messageHash] != MessageStatus.Success, "Message already received");
 
         require(Rollup(rollup).acceptedProofIndex(proofIndex));
 
@@ -97,6 +99,28 @@ contract Bridge {
             ),
             "Invalid proof"
         );
+
+        _receiveMessage(_from, _to, _value, _nonce, _message, messageHash);
+    }
+
+    function receiveFailedMessage(
+        address _from,
+        address _to,
+        uint256 _value,
+        uint256 _nonce,
+        bytes calldata _message
+    ) external payable onlyBridgeSender {
+        bytes memory encodedMessage = _encodeMessage(
+            _from,
+            _to,
+            _value,
+            _nonce,
+            _message
+        );
+
+        bytes32 messageHash = keccak256(encodedMessage);
+
+        require(receivedMessage[messageHash] == MessageStatus.Failed, "Only failed message");
 
         _receiveMessage(_from, _to, _value, _nonce, _message, messageHash);
     }
@@ -118,7 +142,7 @@ contract Bridge {
 
         bytes32 messageHash = keccak256(encodedMessage);
 
-        require(!receivedMessage[messageHash], "Message already received");
+        require(receivedMessage[messageHash] != MessageStatus.Success, "Message already received");
 
         _receiveMessage(_from, _to, _value, _nonce, _message, messageHash);
     }
@@ -137,12 +161,12 @@ contract Bridge {
         (bool success, bytes memory data) = _to.call{value: _value}(_message);
 
         if (success) {
-            receivedMessage[_messageHash] = true;
+            receivedMessage[_messageHash] = MessageStatus.Success;
+            emit ReceivedMessage(_messageHash, success);
         } else {
+            receivedMessage[_messageHash] = MessageStatus.Failed;
             emit Error(data);
         }
-
-        emit ReceivedMessage(_messageHash, success);
     }
 
     function _takeNextNonce() internal returns (uint256) {
