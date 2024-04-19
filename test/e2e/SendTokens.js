@@ -23,18 +23,25 @@ describe("Contract deployment and interaction", function () {
       await SetUpChain(l2Url);
 
     let providerL1 = new ethers.providers.JsonRpcProvider(l1Url); // Replace with your node's RPC URL
-    const privateKey = process.env.PRIVATE_KEY;
+    // const privateKey = process.env.PRIVATE_KEY;
     // const signerL1 = new ethers.Wallet(privateKey, providerL1);
     let signerL1 = providerL1.getSigner();
+    let wallet = ethers.Wallet.fromMnemonic("test test test test test test test test test test test junk")
+
+    signerL1 = wallet.connect(providerL1)
+
     const accounts = await hre.ethers.getSigners();
 
+    console.log("Link bridges")
     const Token = await ethers.getContractFactory("MockERC20Token");
     l1Token = await Token.connect(signerL1).deploy(
       "Mock Token",
       "TKN",
       ethers.utils.parseEther("1000000"),
-      accounts[0].address,
-    ); // Adjust initial supply as needed
+      accounts[0].address,        {
+          gasLimit: 2000000,
+      }
+    );
     await l1Token.deployed();
     console.log("l1token: ", l1Token.address);
 
@@ -57,10 +64,18 @@ describe("Contract deployment and interaction", function () {
   async function SetUpChain(provider_url, withRollup) {
     let provider = new ethers.providers.JsonRpcProvider(provider_url);
 
-    let signer = provider.getSigner();
+    console.log("SetUp chain: ", provider_url)
+
+    let wallet = ethers.Wallet.fromMnemonic("test test test test test test test test test test test junk")
+
+    let signer = wallet.connect(provider)
 
     const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
-    let peggedToken = await PeggedToken.connect(signer).deploy();
+    let peggedToken = await PeggedToken.connect(signer).deploy(
+        {
+          gasLimit: 2000000,
+        }
+    );
     await peggedToken.deployed();
     console.log("Pegged token: ", peggedToken.address);
 
@@ -106,7 +121,9 @@ describe("Contract deployment and interaction", function () {
     );
 
     console.log("token factory owner: ", await tokenFactory.owner());
-    const authTx = await tokenFactory.transferOwnership(erc20Gateway.address);
+    const authTx = await tokenFactory.transferOwnership(erc20Gateway.address,  {
+        gasLimit: 1000000,
+    });
     await authTx.wait();
     console.log("token factory owner: ", await tokenFactory.owner());
 
@@ -117,6 +134,7 @@ describe("Contract deployment and interaction", function () {
   }
 
   it("Compare pegged token addresses", async function () {
+
     let t1 = await l1Gateway.computePeggedTokenAddress(l1Token.address);
     let t2 = await l2Gateway.computeOtherSidePeggedTokenAddress(
       l1Token.address,
@@ -128,25 +146,29 @@ describe("Contract deployment and interaction", function () {
     let provider = new ethers.providers.JsonRpcProvider(l1Url);
     let accounts = await provider.listAccounts();
 
-    const approve_tx = await l1Token.approve(l1Gateway.address, 100);
+    const approve_tx = await l1Token.approve(l1Gateway.address, 100, {
+      gasLimit: 2000000,
+    });
     await approve_tx.wait();
-
-    console.log("Provider", l1Gateway.provider);
 
     console.log("Token send");
     const send_tx = await l1Gateway.sendTokens(
       l1Token.address,
       l2Gateway.signer.getAddress(),
-      100,
+      100,        {
+          gasLimit: 2000000,
+        }
     );
     console.log("Token sent", l1Token.address);
     let receipt = await send_tx.wait();
 
+    console.log("Await event", receipt.blockNumber)
     const events = await l1Bridge.queryFilter(
       "SentMessage",
       receipt.blockNumber,
     );
-
+    console.log("Check events")
+    console.log("Events: ", events)
     expect(events.length).to.equal(1);
 
     const sentEvent = events[0];

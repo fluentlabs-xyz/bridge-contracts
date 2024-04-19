@@ -24,11 +24,12 @@ describe("Contract deployment and interaction", function () {
       await SetUpChain(l2Url);
 
     let providerL1 = new ethers.providers.JsonRpcProvider(l1Url); // Replace with your node's RPC URL
-
-    const signerL1 = providerL1.getSigner()
-
     let providerL2 = new ethers.providers.JsonRpcProvider(l2Url)
-    const signerL2 = providerL2.getSigner()
+
+    let wallet = ethers.Wallet.fromMnemonic("test test test test test test test test test test test junk")
+
+    let signerL1 = wallet.connect(providerL1)
+    let signerL2 = wallet.connect(providerL2)
 
     const accounts = await hre.ethers.getSigners();
 
@@ -257,7 +258,9 @@ describe("Contract deployment and interaction", function () {
   async function SetUpChain(provider_url, withRollup) {
     let provider = new ethers.providers.JsonRpcProvider(provider_url);
 
-    let signer = provider.getSigner();
+    let wallet = ethers.Wallet.fromMnemonic("test test test test test test test test test test test junk")
+
+    let signer = wallet.connect(provider)
 
     const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
     let peggedToken = await PeggedToken.connect(signer).deploy();
