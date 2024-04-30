@@ -3,8 +3,8 @@ prepare:
 	yarn install
 	yarn build
 
-.PHONY: run_node
-run_node:
+.PHONY: run_hardhat_node
+run_hardhat_node:
 	npx hardhat node --port 8546 --hostname 127.0.0.1
 
 .PHONY: run_test
