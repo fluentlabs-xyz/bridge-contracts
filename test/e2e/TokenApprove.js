@@ -2,12 +2,13 @@ const {expect} = require("chai");
 const {ethers} = require("hardhat");
 const consts = require(`../../consts`);
 
-describe("Contract deployment and interaction", function () {
+describe("Contract deployment and interaction", () => {
     let l1Token;
-    let l1Url = `http://127.0.0.1:${consts.FLUENT_NODE_PORT}/`;
+    // let l1Url = `http://${consts.EVM_HOST}:${consts.EVM_NODE_PORT}/`;
+    let l1Url = `http://${consts.FLUENT_HOST}:${consts.FLUENT_NODE_PORT}/`;
 
     before(async () => {
-        const accounts = await hre.ethers.getSigners();
+        const accounts = await ethers.getSigners();
 
         let signerL1 = accounts[0]
 
@@ -24,21 +25,21 @@ describe("Contract deployment and interaction", function () {
         console.log("l1token: ", l1Token.address);
     });
 
-    it("Approve test", async function () {
+    it("Approve test", async () => {
         let provider = new ethers.providers.JsonRpcProvider(l1Url);
         let accounts = await provider.listAccounts();
 
         let allowance = await l1Token.allowance(accounts[0], accounts[1]);
-        console.log("Allowance: ", allowance)
+        console.log(`account0-account1 allowance: ${allowance}`)
 
         expect(allowance.toString()).to.equal("0");
 
         const approve_tx = await l1Token.approve(accounts[1], 100, {
-          gasLimit: 2000000,
+            gasLimit: 2000000,
         });
         let r = await approve_tx.wait();
         allowance = await l1Token.allowance(accounts[0], accounts[1]);
-        console.log("Allowance: ", allowance)
+        console.log(`account0-account1 allowance: ${allowance}`)
 
         expect(allowance.toString()).to.equal("100");
     });

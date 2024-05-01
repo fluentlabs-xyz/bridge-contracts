@@ -11,14 +11,14 @@ run_hardhat_node:
 _run_test:
 	npx hardhat test test/e2e/$(TEST_NAME).js
 
-.PHONY: run_test_RestakeTokens
-run_test_RestakeTokens:
+.PHONY: test_RestakeTokens
+test_RestakeTokens:
 	$(MAKE) _run_test TEST_NAME=RestakeTokens
 
-.PHONY: run_test_SendTokens
-run_test_SendTokens:
+.PHONY: test_SendTokens
+test_SendTokens:
 	$(MAKE) _run_test TEST_NAME=SendTokens
 
-.PHONY: run_test_TokenApprove
-run_test_TokenApprove:
+.PHONY: test_TokenApprove
+test_TokenApprove:
 	$(MAKE) _run_test TEST_NAME=TokenApprove
