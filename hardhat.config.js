@@ -16,10 +16,10 @@ module.exports = {
     },
     networks: {
         L1: {
-            url: `http://localhost:${consts.FLUENT_NODE_PORT}`,
+            url: `http://${consts.FLUENT_HOST}:${consts.FLUENT_NODE_PORT}`,
         },
         L2: {
-            url: `http://localhost:${consts.EVM_NODE_PORT}`,
+            url: `http://${consts.EVM_HOST}:${consts.EVM_NODE_PORT}`,
         },
     },
     mocha: {
