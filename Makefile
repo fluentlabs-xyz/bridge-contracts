@@ -18,3 +18,7 @@ run_test_RestakeTokens:
 .PHONY: run_test_SendTokens
 run_test_SendTokens:
 	$(MAKE) run_test TEST_NAME=SendTokens
+
+.PHONY: run_test_ApproveTest
+run_test_ApproveTest:
+	$(MAKE) run_test TEST_NAME=TokenApprove
