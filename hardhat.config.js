@@ -17,9 +17,23 @@ module.exports = {
     networks: {
         L1: {
             url: `http://localhost:${consts.FLUENT_NODE_PORT}`,
+            accounts: {
+                mnemonic: "test test test test test test test test test test test junk",
+                path: "m/44'/60'/0'/0",
+                initialIndex: 0,
+                count: 20,
+                passphrase: "",
+            },
         },
         L2: {
             url: `http://localhost:${consts.EVM_NODE_PORT}`,
+            accounts: {
+                mnemonic: "test test test test test test test test test test test junk",
+                path: "m/44'/60'/0'/0",
+                initialIndex: 0,
+                count: 20,
+                passphrase: "",
+            },
         },
     },
     mocha: {
