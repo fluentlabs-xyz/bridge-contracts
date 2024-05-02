@@ -1,45 +1,33 @@
 const {expect} = require("chai");
 const {ethers} = require("hardhat");
-const consts = require(`../../consts`);
+const {TestingCtx} = require("./helpers");
 
-describe("Contract deployment and interaction", function () {
+describe("Contract deployment and interaction", () => {
+    let ctxL1;
+    let ctxL2;
+
     let l1Token;
     let l1Gateway, l2Gateway;
     let l1Bridge, l2Bridge;
-    let l1Url = `http://${consts.FLUENT_HOST}:${consts.FLUENT_NODE_PORT}/`;
-    // let l1Url =
-    //   "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
-    let l2Url = `http://${consts.FLUENT_HOST}:${consts.EVM_NODE_PORT}/`;
-    // let l2Url = "https://rpc.dev1.fluentlabs.xyz/";
     let l1Implementation, l2Implementation;
+    let l1Factory, l2Factory;
     let rollup;
 
     before(async () => {
-        [l1Gateway, l1Bridge, l1Implementation, l1Factory] = await SetUpChain(
-            l1Url,
-            true,
-        );
+        ctxL1 = new TestingCtx("L1");
+        ctxL2 = new TestingCtx("L2");
 
-        [l2Gateway, l2Bridge, l2Implementation, l2Factory] =
-            await SetUpChain(l2Url);
+        [l1Gateway, l1Bridge, l1Implementation, l1Factory] = await SetUpChain(ctxL1, true);
 
-        let providerL1 = new ethers.providers.JsonRpcProvider(l1Url); // Replace with your node's RPC URL
-        // const privateKey = process.env.PRIVATE_KEY;
-        // const signerL1 = new ethers.Wallet(privateKey, providerL1);
-        let signerL1 = providerL1.getSigner();
-        let wallet = ethers.Wallet.fromMnemonic("test test test test test test test test test test test junk")
-
-        signerL1 = wallet.connect(providerL1)
-
-        const accounts = await hre.ethers.getSigners();
+        [l2Gateway, l2Bridge, l2Implementation, l2Factory] = await SetUpChain(ctxL2);
 
         console.log("Link bridges")
         const Token = await ethers.getContractFactory("MockERC20Token");
-        l1Token = await Token.connect(signerL1).deploy(
+        l1Token = await Token.connect(ctxL1.wallet).deploy(
             "Mock Token",
             "TKN",
             ethers.utils.parseEther("1000000"),
-            accounts[0].address, {
+            ctxL1.wallet.address, {
                 gasLimit: 2000000,
             }
         );
@@ -62,17 +50,11 @@ describe("Contract deployment and interaction", function () {
         await tx.wait();
     });
 
-    async function SetUpChain(provider_url, withRollup) {
-        let provider = new ethers.providers.JsonRpcProvider(provider_url);
-
-        console.log("SetUp chain: ", provider_url)
-
-        let wallet = ethers.Wallet.fromMnemonic("test test test test test test test test test test test junk")
-
-        let signer = wallet.connect(provider)
+    async function SetUpChain(ctx, withRollup = false) {
+        console.log("SetUp chain: ")
 
         const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
-        let peggedToken = await PeggedToken.connect(signer).deploy(
+        let peggedToken = await PeggedToken.connect(ctx.wallet).deploy(
             {
                 gasLimit: 2000000,
             }
@@ -81,18 +63,17 @@ describe("Contract deployment and interaction", function () {
         console.log("Pegged token: ", peggedToken.address);
 
         const BridgeContract = await ethers.getContractFactory("Bridge");
-        const accounts = await hre.ethers.getSigners();
 
         let rollupAddress = "0x0000000000000000000000000000000000000000";
         if (withRollup) {
             const RollupContract = await ethers.getContractFactory("Rollup");
-            rollup = await RollupContract.connect(signer).deploy();
+            rollup = await RollupContract.connect(ctx.wallet).deploy();
             rollupAddress = rollup.address;
             console.log("Rollup address: ", rollupAddress);
         }
 
-        let bridge = await BridgeContract.connect(signer).deploy(
-            accounts[0].address,
+        let bridge = await BridgeContract.connect(ctx.wallet).deploy(
+            ctx.wallet.address,
             rollupAddress,
         );
         await bridge.deployed();
@@ -103,9 +84,8 @@ describe("Contract deployment and interaction", function () {
             await setBridge.wait();
         }
 
-        const TokenFactoryContract =
-            await ethers.getContractFactory("ERC20TokenFactory");
-        let tokenFactory = await TokenFactoryContract.connect(signer).deploy(
+        const TokenFactoryContract = await ethers.getContractFactory("ERC20TokenFactory");
+        let tokenFactory = await TokenFactoryContract.connect(ctx.wallet).deploy(
             peggedToken.address,
         );
         await tokenFactory.deployed();
@@ -113,7 +93,7 @@ describe("Contract deployment and interaction", function () {
 
         const ERC20GatewayContract =
             await ethers.getContractFactory("ERC20Gateway");
-        let erc20Gateway = await ERC20GatewayContract.connect(signer).deploy(
+        let erc20Gateway = await ERC20GatewayContract.connect(ctx.wallet).deploy(
             bridge.address,
             tokenFactory.address,
             {
@@ -135,18 +115,12 @@ describe("Contract deployment and interaction", function () {
     }
 
     it("Compare pegged token addresses", async function () {
-
         let t1 = await l1Gateway.computePeggedTokenAddress(l1Token.address);
-        let t2 = await l2Gateway.computeOtherSidePeggedTokenAddress(
-            l1Token.address,
-        );
+        let t2 = await l2Gateway.computeOtherSidePeggedTokenAddress(l1Token.address);
         expect(t1).to.equal(t2);
     });
 
     it("Bridging tokens between to contracts", async function () {
-        let provider = new ethers.providers.JsonRpcProvider(l1Url);
-        let accounts = await provider.listAccounts();
-
         const approve_tx = await l1Token.approve(l1Gateway.address, 100, {
             gasLimit: 2000000,
         });
@@ -189,18 +163,18 @@ describe("Contract deployment and interaction", function () {
 
         await receive_tx.wait();
 
-        const bridge_events = await l2Bridge.queryFilter(
+        const bridgeEvents = await l2Bridge.queryFilter(
             "ReceivedMessage",
             receive_tx.blockNumber,
         );
 
-        console.log("ReceivedMessage: ", bridge_events)
-        const error_events = await l2Bridge.queryFilter(
+        console.log("ReceivedMessage: ", bridgeEvents)
+        const errorEvents = await l2Bridge.queryFilter(
             "Error",
             receive_tx.blockNumber,
         );
-        console.log("Error: ", error_events, l2Gateway.address)
-        const gateway_events = await l2Gateway.queryFilter(
+        console.log("Error: ", errorEvents, l2Gateway.address)
+        const gatewayEvents = await l2Gateway.queryFilter(
             {
                 address: l2Gateway.address,
                 topics: [
@@ -210,20 +184,21 @@ describe("Contract deployment and interaction", function () {
             receive_tx.blockNumber,
         );
 
-        console.log("Bridge events: ", bridge_events);
-        console.log("Error events: ", error_events);
-        expect(error_events.length).to.equal(0);
-        expect(bridge_events.length).to.equal(1);
-        console.log("Gateway events: ", gateway_events);
-        expect(gateway_events.length).to.equal(1);
+        console.log("Bridge events: ", bridgeEvents);
+        console.log("Error events: ", errorEvents);
+        expect(errorEvents.length).to.equal(0);
+        expect(bridgeEvents.length).to.equal(1);
+        console.log("Gateway events: ", gatewayEvents);
+        expect(gatewayEvents.length).to.equal(1);
 
         let peggedToken = await l2Gateway.computePeggedTokenAddress(
             l1Token.address,
         );
         console.log("Pegged tokens: ", peggedToken);
+        let l1Addresses = await ctxL1.listAddresses();
         const sendBackTx = await l2Gateway.sendTokens(
             peggedToken,
-            accounts[3],
+            l1Addresses[3],
             100,
         );
         console.log("Token sent", l1Token.address);

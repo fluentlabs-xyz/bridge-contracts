@@ -2,7 +2,7 @@
 require("@nomiclabs/hardhat-ethers");
 require("@nomiclabs/hardhat-solhint");
 require('hardhat-abi-exporter');
-consts = require('./consts')
+helpers = require('./helpers')
 
 module.exports = {
     solidity: {
@@ -16,7 +16,7 @@ module.exports = {
     },
     networks: {
         L1: {
-            url: `http://${consts.FLUENT_HOST}:${consts.FLUENT_NODE_PORT}`,
+            url: `${helpers.fluent_provider_url()}`,
             accounts: {
                 mnemonic: "test test test test test test test test test test test junk",
                 path: "m/44'/60'/0'/0",
@@ -26,7 +26,7 @@ module.exports = {
             },
         },
         L2: {
-            url: `http://${consts.EVM_HOST}:${consts.EVM_NODE_PORT}`,
+            url: `${helpers.evm_provider_url()}`,
             accounts: {
                 mnemonic: "test test test test test test test test test test test junk",
                 path: "m/44'/60'/0'/0",
