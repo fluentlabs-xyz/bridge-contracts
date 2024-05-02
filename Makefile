@@ -19,6 +19,10 @@ NETWORK_NAME:=L1
 _run_test:
 	npx hardhat test test/e2e/$(TEST_NAME).js --network $(NETWORK_NAME)
 
+.PHONY: test_TokenApprove
+test_TokenApprove:
+	$(MAKE) _run_test TEST_NAME=TokenApprove
+
 .PHONY: test_RestakeTokens
 test_RestakeTokens:
 	$(MAKE) _run_test TEST_NAME=RestakeTokens
@@ -26,7 +30,3 @@ test_RestakeTokens:
 .PHONY: test_SendTokens
 test_SendTokens:
 	$(MAKE) _run_test TEST_NAME=SendTokens
-
-.PHONY: test_TokenApprove
-test_TokenApprove:
-	$(MAKE) _run_test TEST_NAME=TokenApprove

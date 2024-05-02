@@ -17,6 +17,9 @@ describe("Contract deployment and interaction", () => {
         ctxL1 = TestingCtx.new_L1();
         ctxL2 = TestingCtx.new_L2();
 
+        await ctxL1.printDebugInfoAsync();
+        await ctxL2.printDebugInfoAsync();
+
         [l1Gateway, l1Bridge, l1Implementation, l1Factory] = await SetUpChain(ctxL1, true);
 
         [l2Gateway, l2Bridge, l2Implementation, l2Factory] = await SetUpChain(ctxL2);
@@ -26,7 +29,7 @@ describe("Contract deployment and interaction", () => {
         l1Token = await mockErc20TokenFactory.connect(ctxL1.wallet).deploy(
             "Mock Token",
             "TKN",
-            ethers.utils.parseEther("1000000"),
+            ethers.utils.parseEther("10"),
             ctxL1.wallet.address, {
                 gasLimit: 2000000,
             }
@@ -97,7 +100,7 @@ describe("Contract deployment and interaction", () => {
             bridge.address,
             tokenFactory.address,
             {
-                value: ethers.utils.parseEther("1000"),
+                value: ethers.utils.parseEther("100"),
             },
         );
 
@@ -115,38 +118,42 @@ describe("Contract deployment and interaction", () => {
     }
 
     it("Compare pegged token addresses", async function () {
-        let t1 = await l1Gateway.computePeggedTokenAddress(l1Token.address);
-        let t2 = await l2Gateway.computeOtherSidePeggedTokenAddress(l1Token.address);
-        expect(t1).to.equal(t2);
+        let peggedTokenAddress = await l1Gateway.computePeggedTokenAddress(l1Token.address);
+        let otherSidePeggedTokenAddress = await l2Gateway.computeOtherSidePeggedTokenAddress(l1Token.address);
+        expect(peggedTokenAddress).to.equal(otherSidePeggedTokenAddress);
     });
 
     it("Bridging tokens between to contracts", async function () {
-        const approveTx = await l1Token.approve(l1Gateway.address, 100, {
+        const approveTx = await l1Token.approve(l1Gateway.address, 10, {
             gasLimit: 2000000,
         });
         await approveTx.wait();
+
+        let l1BridgeEvents = await l1Bridge.queryFilter(
+            "SentMessage",
+        );
 
         console.log("Token send");
         const sendTokensTx = await l1Gateway.sendTokens(
             l1Token.address,
             l2Gateway.signer.getAddress(),
-            100, {
+            10,
+            {
                 gasLimit: 2000000,
             }
         );
-        console.log("Token sent", l1Token.address);
+        console.log("l1Token address", l1Token.address);
         let sendTokensReceipt = await sendTokensTx.wait();
 
-        console.log("Await event", sendTokensReceipt.blockNumber)
-        const events = await l1Bridge.queryFilter(
+        l1BridgeEvents = await l1Bridge.queryFilter(
             "SentMessage",
             sendTokensReceipt.blockNumber,
         );
         console.log("Check events")
-        console.log("Events:", events)
-        expect(events.length).to.equal(1);
+        console.log("Events:", l1BridgeEvents)
+        expect(l1BridgeEvents.length).to.equal(1);
 
-        const sentEvent = events[0];
+        const sentEvent = l1BridgeEvents[0];
 
         let sendMessageHash = sentEvent.args["messageHash"];
 
@@ -198,7 +205,7 @@ describe("Contract deployment and interaction", () => {
         const sendBackTx = await l2Gateway.sendTokens(
             peggedToken,
             l1Addresses[3],
-            100,
+            10,
         );
         console.log("Token sent", l1Token.address);
         await sendBackTx.wait();

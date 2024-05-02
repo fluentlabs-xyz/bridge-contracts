@@ -22,17 +22,18 @@ class TestingCtx {
     }
 
     printDebugInfo() {
-        console.log(`debug info for ${this.networkName}`)
+        console.log(`${this.networkName}: debug info:`)
         console.log(`${this.networkName}: networkConfig.url: ${this.networkConfig.url}`);
         console.log(`${this.networkName}: wallet.address: ${this.wallet.address}`);
     }
 
     async printDebugInfoAsync() {
-        console.log(`async debug info for ${this.networkName}`)
+        console.log(`${this.networkName}: async debug info:`)
         let addresses = await this.listAddresses();
         for (let i in addresses) {
-            let b = await this.provider.getBalance(addresses[i]);
-            console.log(`address[${i}].balance=${b.toString()}`)
+            let address = addresses[i]
+            let b = await this.provider.getBalance(address);
+            console.log(`address[${i}][${address}].balance=${b.toString()}`)
         }
     }
 
