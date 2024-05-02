@@ -22,5 +22,4 @@ test_SendTokens:
 
 .PHONY: test_TokenApprove
 test_TokenApprove:
-	npx hardhat test test/e2e/TokenApprove.js
-	npx hardhat test test/e2e/TokenApprove.js --network L1
+	$(MAKE) _run_test TEST_NAME=TokenApprove
