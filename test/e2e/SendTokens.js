@@ -51,7 +51,7 @@ describe("Contract deployment and interaction", () => {
     });
 
     async function SetUpChain(ctx, withRollup = false) {
-        console.log("SetUp chain: ")
+        console.log(`SetUp chain for ${ctx.networkName}`)
 
         const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
         let peggedToken = await PeggedToken.connect(ctx.wallet).deploy(

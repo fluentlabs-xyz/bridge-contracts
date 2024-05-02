@@ -248,13 +248,14 @@ describe("Contract deployment and interaction", function () {
     }
 
     async function SetUpChain(ctx, withRollup) {
+        console.log(`SetUp chain for ${ctx.networkName}`)
+
         const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
         let peggedToken = await PeggedToken.connect(ctx.wallet).deploy();
         await peggedToken.deployed();
         console.log("Pegged token: ", peggedToken.address);
 
         const BridgeContract = await ethers.getContractFactory("Bridge");
-        const accounts = await hre.ethers.getSigners();
 
         let rollupAddress = "0x0000000000000000000000000000000000000000";
         if (withRollup) {
@@ -265,7 +266,7 @@ describe("Contract deployment and interaction", function () {
         }
 
         let bridge = await BridgeContract.connect(ctx.wallet).deploy(
-            accounts[0].address,
+            ctx.wallet.address,
             rollupAddress,
         );
         await bridge.deployed();

@@ -2,11 +2,12 @@ const {ethers} = require("hardhat");
 const hre = require("hardhat");
 
 class TestingCtx {
-    constructor(network = "L1") {
-        this.networkConfig = hre.config.networks[network];
+    constructor(networkName = "L1") {
+        this.networkName = networkName
+        this.networkConfig = hre.config.networks[networkName];
         this.provider = new ethers.providers.JsonRpcProvider(this.networkConfig.url);
         this.wallet = new ethers.Wallet.fromMnemonic(this.networkConfig.accounts.mnemonic).connect(this.provider);
-        console.log(`${network}: wallet.address: ${this.wallet.address}`);
+        console.log(`${networkName}: wallet.address: ${this.wallet.address}`);
     }
 
     async listAddresses() {
