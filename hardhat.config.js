@@ -34,6 +34,7 @@ module.exports = {
                 count: 20,
                 passphrase: "",
             },
+            chainId: 1337,
         },
     },
     mocha: {

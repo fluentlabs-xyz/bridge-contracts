@@ -20,17 +20,19 @@ describe("Contract deployment and interaction", () => {
         await ctxL1.printDebugInfoAsync();
         await ctxL2.printDebugInfoAsync();
 
+        const [owner] = ctxL2.accounts;
+
         [l1Gateway, l1Bridge, l1Implementation, l1Factory] = await SetUpChain(ctxL2, true);
 
         [l2Gateway, l2Bridge, l2Implementation, l2Factory] = await SetUpChain(ctxL1);
 
         console.log("Link bridges")
         const mockErc20TokenFactory = await ethers.getContractFactory("MockERC20Token");
-        l1Token = await mockErc20TokenFactory.connect(ctxL2.wallet).deploy(
+        l1Token = await mockErc20TokenFactory.connect(owner).deploy(
             "Mock Token",
             "TKN",
             ethers.utils.parseEther("10"),
-            ctxL2.wallet.address, {
+          owner.address, {
                 gasLimit: 2000000,
             }
         );
@@ -56,8 +58,10 @@ describe("Contract deployment and interaction", () => {
     async function SetUpChain(ctx, withRollup = false) {
         console.log(`SetUp chain for ${ctx.networkName} (withRollup=${withRollup})`);
 
+        const [owner] = ctx.accounts;
+
         const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
-        let peggedToken = await PeggedToken.connect(ctx.wallet).deploy(
+        let peggedToken = await PeggedToken.connect(owner).deploy(
             {
                 gasLimit: 2000000,
             }
@@ -70,13 +74,13 @@ describe("Contract deployment and interaction", () => {
         let rollupAddress = "0x0000000000000000000000000000000000000000";
         if (withRollup) {
             const RollupContract = await ethers.getContractFactory("Rollup");
-            rollup = await RollupContract.connect(ctx.wallet).deploy();
+            rollup = await RollupContract.connect(owner).deploy();
             rollupAddress = rollup.address;
             console.log("Rollup address:", rollupAddress);
         }
 
-        let bridge = await BridgeContract.connect(ctx.wallet).deploy(
-            ctx.wallet.address,
+        let bridge = await BridgeContract.connect(owner).deploy(
+          owner.address,
             rollupAddress,
         );
         await bridge.deployed();
@@ -88,7 +92,7 @@ describe("Contract deployment and interaction", () => {
         }
 
         const TokenFactoryContract = await ethers.getContractFactory("ERC20TokenFactory");
-        let tokenFactory = await TokenFactoryContract.connect(ctx.wallet).deploy(
+        let tokenFactory = await TokenFactoryContract.connect(owner).deploy(
             peggedToken.address,
         );
         await tokenFactory.deployed();
@@ -96,7 +100,7 @@ describe("Contract deployment and interaction", () => {
 
         const ERC20GatewayContract =
             await ethers.getContractFactory("ERC20Gateway");
-        let erc20Gateway = await ERC20GatewayContract.connect(ctx.wallet).deploy(
+        let erc20Gateway = await ERC20GatewayContract.connect(owner).deploy(
             bridge.address,
             tokenFactory.address,
             {
