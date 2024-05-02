@@ -58,7 +58,7 @@ describe("Send tokens test", () => {
     async function SetUpChain(ctx, withRollup = false) {
         console.log(`SetUp chain for ${ctx.networkName} (withRollup=${withRollup})`);
 
-        const [owner] = ctx.owner();
+        const owner = ctx.owner();
 
         const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
         let peggedToken = await PeggedToken.connect(owner).deploy(

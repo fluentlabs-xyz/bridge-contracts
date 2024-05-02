@@ -26,7 +26,8 @@ class TestingCtx {
     }
 
     owner() {
-        return this.accounts[0]
+        const [owner] = this.accounts;
+        return owner
     }
 
     async printDebugInfoAsync() {
