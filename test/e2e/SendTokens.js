@@ -14,16 +14,16 @@ describe("Contract deployment and interaction", () => {
     let rollup;
 
     before(async () => {
-        ctxL1 = new TestingCtx("L1");
-        ctxL2 = new TestingCtx("L2");
+        ctxL1 = TestingCtx.new_L1();
+        ctxL2 = TestingCtx.new_L2();
 
         [l1Gateway, l1Bridge, l1Implementation, l1Factory] = await SetUpChain(ctxL1, true);
 
         [l2Gateway, l2Bridge, l2Implementation, l2Factory] = await SetUpChain(ctxL2);
 
         console.log("Link bridges")
-        const Token = await ethers.getContractFactory("MockERC20Token");
-        l1Token = await Token.connect(ctxL1.wallet).deploy(
+        const mockErc20TokenFactory = await ethers.getContractFactory("MockERC20Token");
+        l1Token = await mockErc20TokenFactory.connect(ctxL1.wallet).deploy(
             "Mock Token",
             "TKN",
             ethers.utils.parseEther("1000000"),
@@ -32,26 +32,26 @@ describe("Contract deployment and interaction", () => {
             }
         );
         await l1Token.deployed();
-        console.log("l1token: ", l1Token.address);
+        console.log("l1Token address:", l1Token.address);
 
-        console.log("L1 gw: ", l1Gateway.address, "L2 gw: ", l2Gateway.address);
+        console.log("L1 gw address:", l1Gateway.address, "L2 gw address:", l2Gateway.address);
 
-        let tx = await l1Gateway.setOtherSide(
+        let setOtherSideTx = await l1Gateway.setOtherSide(
             l2Gateway.address,
             l2Implementation,
             l2Factory,
         );
-        await tx.wait();
-        tx = await l2Gateway.setOtherSide(
+        await setOtherSideTx.wait();
+        setOtherSideTx = await l2Gateway.setOtherSide(
             l1Gateway.address,
             l1Implementation,
             l1Factory,
         );
-        await tx.wait();
+        await setOtherSideTx.wait();
     });
 
     async function SetUpChain(ctx, withRollup = false) {
-        console.log(`SetUp chain for ${ctx.networkName}`)
+        console.log(`SetUp chain for ${ctx.networkName} (withRollup=${withRollup})`);
 
         const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
         let peggedToken = await PeggedToken.connect(ctx.wallet).deploy(
@@ -60,7 +60,7 @@ describe("Contract deployment and interaction", () => {
             }
         );
         await peggedToken.deployed();
-        console.log("Pegged token: ", peggedToken.address);
+        console.log("Pegged token address:", peggedToken.address);
 
         const BridgeContract = await ethers.getContractFactory("Bridge");
 
@@ -69,7 +69,7 @@ describe("Contract deployment and interaction", () => {
             const RollupContract = await ethers.getContractFactory("Rollup");
             rollup = await RollupContract.connect(ctx.wallet).deploy();
             rollupAddress = rollup.address;
-            console.log("Rollup address: ", rollupAddress);
+            console.log("Rollup address:", rollupAddress);
         }
 
         let bridge = await BridgeContract.connect(ctx.wallet).deploy(
@@ -77,11 +77,11 @@ describe("Contract deployment and interaction", () => {
             rollupAddress,
         );
         await bridge.deployed();
-        console.log("Bridge: ", bridge.address);
+        console.log("Bridge address:", bridge.address);
 
         if (withRollup) {
-            let setBridge = await rollup.setBridge(bridge.address);
-            await setBridge.wait();
+            let setBridgeTx = await rollup.setBridge(bridge.address);
+            await setBridgeTx.wait();
         }
 
         const TokenFactoryContract = await ethers.getContractFactory("ERC20TokenFactory");
@@ -89,7 +89,7 @@ describe("Contract deployment and interaction", () => {
             peggedToken.address,
         );
         await tokenFactory.deployed();
-        console.log("TokenFactory: ", tokenFactory.address);
+        console.log("TokenFactory address:", tokenFactory.address);
 
         const ERC20GatewayContract =
             await ethers.getContractFactory("ERC20Gateway");
@@ -101,15 +101,15 @@ describe("Contract deployment and interaction", () => {
             },
         );
 
-        console.log("token factory owner: ", await tokenFactory.owner());
-        const authTx = await tokenFactory.transferOwnership(erc20Gateway.address, {
+        console.log("token factory owner:", await tokenFactory.owner());
+        const transferOwnership = await tokenFactory.transferOwnership(erc20Gateway.address, {
             gasLimit: 1000000,
         });
-        await authTx.wait();
-        console.log("token factory owner: ", await tokenFactory.owner());
+        await transferOwnership.wait();
+        console.log("token factory owner:", await tokenFactory.owner());
 
         await erc20Gateway.deployed();
-        console.log("Gateway: ", erc20Gateway.address);
+        console.log("Gateway:", erc20Gateway.address);
 
         return [erc20Gateway, bridge, peggedToken.address, tokenFactory.address];
     }
@@ -121,13 +121,13 @@ describe("Contract deployment and interaction", () => {
     });
 
     it("Bridging tokens between to contracts", async function () {
-        const approve_tx = await l1Token.approve(l1Gateway.address, 100, {
+        const approveTx = await l1Token.approve(l1Gateway.address, 100, {
             gasLimit: 2000000,
         });
-        await approve_tx.wait();
+        await approveTx.wait();
 
         console.log("Token send");
-        const send_tx = await l1Gateway.sendTokens(
+        const sendTokensTx = await l1Gateway.sendTokens(
             l1Token.address,
             l2Gateway.signer.getAddress(),
             100, {
@@ -135,15 +135,15 @@ describe("Contract deployment and interaction", () => {
             }
         );
         console.log("Token sent", l1Token.address);
-        let receipt = await send_tx.wait();
+        let sendTokensReceipt = await sendTokensTx.wait();
 
-        console.log("Await event", receipt.blockNumber)
+        console.log("Await event", sendTokensReceipt.blockNumber)
         const events = await l1Bridge.queryFilter(
             "SentMessage",
-            receipt.blockNumber,
+            sendTokensReceipt.blockNumber,
         );
         console.log("Check events")
-        console.log("Events: ", events)
+        console.log("Events:", events)
         expect(events.length).to.equal(1);
 
         const sentEvent = events[0];
@@ -153,27 +153,26 @@ describe("Contract deployment and interaction", () => {
         console.log("Message hash", sendMessageHash);
         console.log("Event", sentEvent);
 
-        const receive_tx = await l2Bridge.receiveMessage(
+        const receiveMessageTx = await l2Bridge.receiveMessage(
             sentEvent.args["sender"],
             sentEvent.args["to"],
             sentEvent.args["value"],
             sentEvent.args["nonce"],
             sentEvent.args["data"],
         );
-
-        await receive_tx.wait();
+        let receiveMessageReceipt = await receiveMessageTx.wait();
 
         const bridgeEvents = await l2Bridge.queryFilter(
             "ReceivedMessage",
-            receive_tx.blockNumber,
+            receiveMessageReceipt.blockNumber,
         );
 
-        console.log("ReceivedMessage: ", bridgeEvents)
+        console.log("ReceivedMessage:", bridgeEvents)
         const errorEvents = await l2Bridge.queryFilter(
             "Error",
-            receive_tx.blockNumber,
+            receiveMessageReceipt.blockNumber,
         );
-        console.log("Error: ", errorEvents, l2Gateway.address)
+        console.log("Error:", errorEvents, l2Gateway.address)
         const gatewayEvents = await l2Gateway.queryFilter(
             {
                 address: l2Gateway.address,
@@ -181,20 +180,20 @@ describe("Contract deployment and interaction", () => {
                     ethers.utils.id("ReceivedTokens(address,address,uint256)")
                 ]
             },
-            receive_tx.blockNumber,
+            receiveMessageReceipt.blockNumber,
         );
 
-        console.log("Bridge events: ", bridgeEvents);
-        console.log("Error events: ", errorEvents);
+        console.log("Bridge events:", bridgeEvents);
+        console.log("Error events:", errorEvents);
         expect(errorEvents.length).to.equal(0);
         expect(bridgeEvents.length).to.equal(1);
-        console.log("Gateway events: ", gatewayEvents);
+        console.log("Gateway events:", gatewayEvents);
         expect(gatewayEvents.length).to.equal(1);
 
         let peggedToken = await l2Gateway.computePeggedTokenAddress(
             l1Token.address,
         );
-        console.log("Pegged tokens: ", peggedToken);
+        console.log("Pegged tokens:", peggedToken);
         let l1Addresses = await ctxL1.listAddresses();
         const sendBackTx = await l2Gateway.sendTokens(
             peggedToken,
@@ -206,7 +205,7 @@ describe("Contract deployment and interaction", () => {
 
         const backEvents = await l2Bridge.queryFilter(
             "SentMessage",
-            send_tx.blockNumber,
+            sendTokensReceipt.blockNumber,
         );
 
         expect(backEvents.length).to.equal(1);
@@ -217,11 +216,10 @@ describe("Contract deployment and interaction", () => {
 
         let deposits = Buffer.from(sendMessageHash.substring(2), "hex");
         console.log(deposits);
-        const accept = await rollup.acceptNextProof(1, messageHash, deposits);
+        const acceptTx = await rollup.acceptNextProof(1, messageHash, deposits);
+        await acceptTx.wait();
 
-        await accept.wait();
-
-        const receiveBackTx = await l1Bridge.receiveMessageWithProof(
+        const receiveMessageWithProofTx = await l1Bridge.receiveMessageWithProof(
             sentBackEvent.args["sender"],
             sentBackEvent.args["to"],
             sentBackEvent.args["value"],
@@ -230,16 +228,15 @@ describe("Contract deployment and interaction", () => {
             [],
             1,
         );
-
-        await receiveBackTx.wait();
+        await receiveMessageWithProofTx.wait();
 
         const bridgeBackEvents = await l1Bridge.queryFilter(
             "ReceivedMessage",
-            receive_tx.blockNumber,
+            receiveMessageReceipt.blockNumber,
         );
         const errorBackEvents = await l1Bridge.queryFilter(
             "Error",
-            receive_tx.blockNumber,
+            receiveMessageReceipt.blockNumber,
         );
         const gatewayBackEvents = await l1Gateway.queryFilter(
             {
@@ -248,14 +245,14 @@ describe("Contract deployment and interaction", () => {
                     ethers.utils.id("ReceivedTokens(address,address,uint256)")
                 ]
             },
-            receive_tx.blockNumber,
+            receiveMessageReceipt.blockNumber,
         );
 
-        console.log("Bridge back events: ", bridgeBackEvents);
-        console.log("Error back events: ", errorBackEvents);
+        console.log("Bridge back events:", bridgeBackEvents);
+        console.log("Error back events:", errorBackEvents);
         expect(errorBackEvents.length).to.equal(0);
         expect(bridgeBackEvents.length).to.equal(1);
-        console.log("Gateway back events: ", gatewayBackEvents);
+        console.log("Gateway back events:", gatewayBackEvents);
         expect(gatewayBackEvents.length).to.equal(1);
     });
 });
