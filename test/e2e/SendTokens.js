@@ -2,7 +2,7 @@ const {expect} = require("chai");
 const {ethers} = require("hardhat");
 const {TestingCtx} = require("./helpers");
 
-describe("Contract deployment and interaction", () => {
+describe("Send tokens test", () => {
     let ctxL2;
     let ctxL1;
 
@@ -32,7 +32,7 @@ describe("Contract deployment and interaction", () => {
             "Mock Token",
             "TKN",
             ethers.utils.parseEther("10"),
-          owner.address, {
+            owner.address, {
                 gasLimit: 2000000,
             }
         );
@@ -58,7 +58,7 @@ describe("Contract deployment and interaction", () => {
     async function SetUpChain(ctx, withRollup = false) {
         console.log(`SetUp chain for ${ctx.networkName} (withRollup=${withRollup})`);
 
-        const [owner] = ctx.accounts;
+        const [owner] = ctx.owner();
 
         const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
         let peggedToken = await PeggedToken.connect(owner).deploy(
@@ -80,7 +80,7 @@ describe("Contract deployment and interaction", () => {
         }
 
         let bridge = await BridgeContract.connect(owner).deploy(
-          owner.address,
+            owner.address,
             rollupAddress,
         );
         await bridge.deployed();
@@ -133,10 +133,6 @@ describe("Contract deployment and interaction", () => {
         });
         await approveTx.wait();
 
-        let l1BridgeEvents = await l1Bridge.queryFilter(
-            "SentMessage",
-        );
-
         console.log("Token send");
         const sendTokensTx = await l1Gateway.sendTokens(
             l1Token.address,
@@ -149,7 +145,7 @@ describe("Contract deployment and interaction", () => {
         console.log("l1Token address", l1Token.address);
         let sendTokensReceipt = await sendTokensTx.wait();
 
-        l1BridgeEvents = await l1Bridge.queryFilter(
+        let l1BridgeEvents = await l1Bridge.queryFilter(
             "SentMessage",
             sendTokensReceipt.blockNumber,
         );

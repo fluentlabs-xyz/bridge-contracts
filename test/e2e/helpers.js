@@ -25,10 +25,8 @@ class TestingCtx {
         return new TestingCtx("L2");
     }
 
-    printDebugInfo() {
-        console.log(`${this.networkName}: debug info:`)
-        console.log(`${this.networkName}: networkConfig.url: ${this.networkConfig.url}`);
-        console.log(`${this.networkName}: wallet.address: ${this.accounts[0].address}`);
+    owner() {
+        return this.accounts[0]
     }
 
     async printDebugInfoAsync() {
@@ -42,7 +40,7 @@ class TestingCtx {
     }
 
     async listAddresses() {
-        return this.accounts.map(function(v) {
+        return this.accounts.map(function (v) {
             return v.address;
         });
     }
