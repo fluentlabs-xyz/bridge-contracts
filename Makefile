@@ -3,9 +3,11 @@ prepare:
 	yarn install
 	yarn build
 
+FLUENT_NODE_PORT:=8545
+EVM_NODE_PORT:=8546
 .PHONY: run_hardhat_node
 run_hardhat_node:
-	npx hardhat node --port 8546 --hostname 127.0.0.1
+	npx hardhat node --port $(EVM_NODE_PORT) --hostname 127.0.0.1
 
 NETWORK_NAME:=L1
 .PHONY: _run_test

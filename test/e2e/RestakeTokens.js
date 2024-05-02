@@ -285,8 +285,7 @@ describe("Contract deployment and interaction", function () {
         await tokenFactory.deployed();
         console.log("TokenFactory: ", tokenFactory.address);
 
-        const ERC20GatewayContract =
-            await ethers.getContractFactory("ERC20Gateway");
+        const ERC20GatewayContract = await ethers.getContractFactory("ERC20Gateway");
         let erc20Gateway = await ERC20GatewayContract.connect(ctx.wallet).deploy(
             bridge.address,
             tokenFactory.address,
