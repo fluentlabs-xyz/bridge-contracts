@@ -3,8 +3,8 @@ const {ethers} = require("hardhat");
 const {TestingCtx} = require("./helpers");
 
 describe("Contract deployment and interaction", () => {
-    let ctxL1;
     let ctxL2;
+    let ctxL1;
 
     let l1Token;
     let l1Gateway, l2Gateway;
@@ -20,17 +20,17 @@ describe("Contract deployment and interaction", () => {
         await ctxL1.printDebugInfoAsync();
         await ctxL2.printDebugInfoAsync();
 
-        [l1Gateway, l1Bridge, l1Implementation, l1Factory] = await SetUpChain(ctxL1, true);
+        [l1Gateway, l1Bridge, l1Implementation, l1Factory] = await SetUpChain(ctxL2, true);
 
-        [l2Gateway, l2Bridge, l2Implementation, l2Factory] = await SetUpChain(ctxL2);
+        [l2Gateway, l2Bridge, l2Implementation, l2Factory] = await SetUpChain(ctxL1);
 
         console.log("Link bridges")
         const mockErc20TokenFactory = await ethers.getContractFactory("MockERC20Token");
-        l1Token = await mockErc20TokenFactory.connect(ctxL1.wallet).deploy(
+        l1Token = await mockErc20TokenFactory.connect(ctxL2.wallet).deploy(
             "Mock Token",
             "TKN",
             ethers.utils.parseEther("10"),
-            ctxL1.wallet.address, {
+            ctxL2.wallet.address, {
                 gasLimit: 2000000,
             }
         );
@@ -201,7 +201,7 @@ describe("Contract deployment and interaction", () => {
             l1Token.address,
         );
         console.log("Pegged tokens:", peggedToken);
-        let l1Addresses = await ctxL1.listAddresses();
+        let l1Addresses = await ctxL2.listAddresses();
         const sendBackTx = await l2Gateway.sendTokens(
             peggedToken,
             l1Addresses[3],

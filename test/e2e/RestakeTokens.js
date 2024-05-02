@@ -17,8 +17,8 @@ describe("Contract deployment and interaction", function () {
     const RESTAKER_PROVIDER = "RESTAKER_PROVIDER"
 
     before(async () => {
-        ctxL1 = TestingCtx.new_L1();
-        ctxL2 = TestingCtx.new_L2();
+        ctxL1 = TestingCtx.new_L2();
+        ctxL2 = TestingCtx.new_L1();
 
         [l1Gateway, l1Bridge, l1Implementation, l1Factory] = await SetUpChain(ctxL1, true);
 

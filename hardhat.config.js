@@ -16,7 +16,7 @@ module.exports = {
     },
     networks: {
         L1: {
-            url: `${helpers.fluent_provider_url()}`,
+            url: `${helpers.evm_provider_url()}`,
             accounts: {
                 mnemonic: "test test test test test test test test test test test junk",
                 path: "m/44'/60'/0'/0",
@@ -26,7 +26,7 @@ module.exports = {
             },
         },
         L2: {
-            url: `${helpers.evm_provider_url()}`,
+            url: `${helpers.fluent_provider_url()}`,
             accounts: {
                 mnemonic: "test test test test test test test test test test test junk",
                 path: "m/44'/60'/0'/0",
