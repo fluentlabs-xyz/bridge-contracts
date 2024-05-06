@@ -76,6 +76,7 @@ describe("Send tokens test", () => {
 
         let rollupContractAddress = "0x0000000000000000000000000000000000000000";
         if (withRollup) {
+            console.log(`bridgeContract started`)
             const rollupFactory = await ethers.getContractFactory("Rollup");
             rollupContract = await rollupFactory.connect(owner).deploy();
             rollupContractAddress = rollupContract.address;
@@ -84,6 +85,7 @@ describe("Send tokens test", () => {
             expect(rollupContractTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
         }
 
+        console.log(`bridgeContract started`)
         const bridgeFactory = await ethers.getContractFactory("Bridge");
         let bridgeContract = await bridgeFactory.connect(owner).deploy(
             owner.address,
@@ -95,11 +97,13 @@ describe("Send tokens test", () => {
         expect(bridgeContractTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
         if (withRollup) {
+            console.log(`setBridgeTx started`)
             let setBridgeTx = await rollupContract.setBridge(bridgeContract.address);
             let setBridgeTxReceipt = await setBridgeTx.wait();
             expect(setBridgeTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
         }
 
+        console.log(`erc20TokenContract started`)
         const erc20TokenFactory = await ethers.getContractFactory("ERC20TokenFactory");
         let erc20TokenContract = await erc20TokenFactory.connect(owner).deploy(
             peggedTokenContract.address,
@@ -109,6 +113,7 @@ describe("Send tokens test", () => {
         let erc20tokenContractTxReceipt = await erc20TokenContract.deployTransaction.wait();
         expect(erc20tokenContractTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
+        console.log(`erc20GatewayContract started`)
         const erc20GatewayFactory = await ethers.getContractFactory("ERC20Gateway");
         let erc20GatewayContract = await erc20GatewayFactory.connect(owner).deploy(
             bridgeContract.address,
@@ -146,7 +151,7 @@ describe("Send tokens test", () => {
         let approveTxReceipt = await approveTx.wait();
         expect(approveTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
-        console.log("Token send");
+        console.log("l1GatewayContract.sendTokens");
         const sendTokensTx = await l1GatewayContract.sendTokens(
             l1TokenContract.address,
             l2GatewayContract.signer.getAddress(),
@@ -222,7 +227,7 @@ describe("Send tokens test", () => {
             l1Addresses[3],
             10,
         );
-        console.log("Token sent", l1TokenContract.address);
+        console.log(`l1TokenContract.address ${l1TokenContract.address}`);
         let sendTokensBackTxReceipt = await sendTokensBackTx.wait();
         expect(sendTokensBackTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
@@ -237,9 +242,9 @@ describe("Send tokens test", () => {
         console.log(sendTokensBackEvents);
         const sentBackEvent = sendTokensBackEvents[0];
 
-        let deposits = Buffer.from(sendMessageHash.substring(2), "hex");
-        console.log(deposits);
-        const acceptNextTx = await rollupContract.acceptNextProof(1, messageHash, deposits);
+        let sendMessageHashBuffer = Buffer.from(sendMessageHash.substring(2), "hex");
+        console.log(`sendMessageHashBuffer: ${sendMessageHashBuffer}`);
+        const acceptNextTx = await rollupContract.acceptNextProof(1, messageHash, sendMessageHashBuffer);
         let acceptNextTxReceipt = await acceptNextTx.wait();
         expect(acceptNextTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
