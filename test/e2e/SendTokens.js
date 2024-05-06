@@ -92,7 +92,7 @@ describe("Send tokens test", () => {
             rollupContractAddress,
         );
         await bridgeContract.deployed();
-        console.log("Bridge address:", bridgeContract.address);
+        console.log(`bridgeContract.address: ${bridgeContract.address}`);
         let bridgeContractTxReceipt = await bridgeContract.deployTransaction.wait();
         expect(bridgeContractTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
@@ -151,7 +151,7 @@ describe("Send tokens test", () => {
         let approveTxReceipt = await approveTx.wait();
         expect(approveTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
-        console.log("l1GatewayContract.sendTokens");
+        console.log("l2GatewayContract.sendTokens");
         const sendTokensTx = await l2GatewayContract.sendTokens(
             l2TokenContract.address,
             l1GatewayContract.signer.getAddress(),
@@ -160,7 +160,7 @@ describe("Send tokens test", () => {
                 gasLimit: 5000000,
             }
         );
-        console.log("l1Token address", l2TokenContract.address);
+        console.log("l2TokenContract.address", l2TokenContract.address);
         let sendTokensReceipt = await sendTokensTx.wait();
         expect(sendTokensReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
@@ -199,7 +199,7 @@ describe("Send tokens test", () => {
             "Error",
             receiveMessageReceipt.blockNumber,
         );
-        console.log(`errorEvents: ${errorEvents}. l2GatewayContract.address: ${l1GatewayContract.address}`)
+        console.log(`errorEvents: ${errorEvents}. l1GatewayContract.address: ${l1GatewayContract.address}`)
         const gatewayEvents = await l1GatewayContract.queryFilter(
             {
                 address: l1GatewayContract.address,
@@ -227,7 +227,7 @@ describe("Send tokens test", () => {
             l1Addresses[3],
             10,
         );
-        console.log(`l1TokenContract.address ${l2TokenContract.address}`);
+        console.log(`l2TokenContract.address ${l2TokenContract.address}`);
         let sendTokensBackTxReceipt = await sendTokensBackTx.wait();
         expect(sendTokensBackTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
