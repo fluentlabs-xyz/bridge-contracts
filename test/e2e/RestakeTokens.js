@@ -12,6 +12,7 @@ describe("Restate tokens test", function () {
     let l1Implementation, l2Implementation;
     let rollup;
     let l1RestakerGateway, l2RestakerGateway;
+    let l1RestakerImplementation, l2RestakerImplementation;
     let restakerPool;
     let liquidityToken;
     const RESTAKER_PROVIDER = "RESTAKER_PROVIDER"
@@ -20,9 +21,9 @@ describe("Restate tokens test", function () {
         ctxL1 = TestingCtx.new_L1();
         ctxL2 = TestingCtx.new_L2();
 
-        [l1Gateway, l1Bridge, l1Implementation, l2Factory] = await SetUpChain(ctxL1);
+        [l1Gateway, l1Bridge, l1Implementation, l1Factory] = await SetUpChain(ctxL1);
 
-        [l2Gateway, l2Bridge, l2Implementation, l1Factory] = await SetUpChain(ctxL2, true);
+        [l2Gateway, l2Bridge, l2Implementation, l2Factory] = await SetUpChain(ctxL2, true);
 
         const Token = await ethers.getContractFactory("MockERC20Token");
         l1Token = await Token.connect(ctxL2.owner()).deploy(
@@ -60,13 +61,13 @@ describe("Restate tokens test", function () {
         setOtherSideTx = await l2Gateway.setOtherSide(
             l1Gateway.address,
             l1Implementation,
-            l2Factory,
+            l1Factory,
         );
         await setOtherSideTx.wait();
         setOtherSideTx = await l1Gateway.setOtherSide(
             l2Gateway.address,
             l2Implementation,
-            l1Factory,
+            l2Factory,
         );
         await setOtherSideTx.wait();
     });

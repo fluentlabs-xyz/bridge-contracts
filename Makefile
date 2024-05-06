@@ -17,7 +17,8 @@ run_evm_node2:
 NETWORK_NAME:=L1
 .PHONY: _run_test
 _run_test:
-	npx hardhat test test/e2e/$(TEST_NAME).js --network $(NETWORK_NAME)
+	npx hardhat test test/e2e/$(TEST_NAME).js --network $(NETWORK_NAME) || true
+	notify-send "bridge-contracts" "_run_test '$(TEST_NAME)' finished" || true
 
 .PHONY: test_TokenApprove
 test_TokenApprove:
