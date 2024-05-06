@@ -40,9 +40,9 @@ describe("Send tokens test", () => {
             }
         );
         await l2TokenContract.deployed();
-        console.log(`l1TokenContract.address: ${l2TokenContract.address}`);
+        console.log(`l2TokenContract.address: ${l2TokenContract.address}`);
 
-        console.log(`l1GatewayContract.address: ${l2GatewayContract.address} L2 gw address: ${l1GatewayContract.address}`);
+        console.log(`l1GatewayContract.address: ${l1GatewayContract.address} l2GatewayContract.address: ${l2GatewayContract.address}`);
 
         let setOtherSideTx = await l2GatewayContract.setOtherSide(
             l1GatewayContract.address,
