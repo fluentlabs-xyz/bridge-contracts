@@ -36,7 +36,7 @@ describe("Send tokens test", () => {
             "TKN",
             ethers.utils.parseEther("10"),
             ownerL2.address, {
-                gasLimit: 5000000,
+                gasLimit: 30000000,
             }
         );
         await l2TokenContract.deployed();
@@ -66,7 +66,7 @@ describe("Send tokens test", () => {
         const erc20PeggedTokenFactory = await ethers.getContractFactory("ERC20PeggedToken");
         let peggedTokenContract = await erc20PeggedTokenFactory.connect(owner).deploy(
             {
-                gasLimit: 5000000,
+                gasLimit: 30000000,
             }
         );
         await peggedTokenContract.deployed();
@@ -129,7 +129,7 @@ describe("Send tokens test", () => {
 
         console.log(`erc20TokenContract.owner: ${await erc20TokenContract.owner()}`);
         const transferOwnershipTx = await erc20TokenContract.transferOwnership(erc20GatewayContract.address, {
-            gasLimit: 5000000,
+            gasLimit: 30000000,
         });
         let transferOwnershipTxReceipt = await transferOwnershipTx.wait();
         console.log("erc20TokenContract.owner:", await erc20TokenContract.owner());
@@ -146,7 +146,7 @@ describe("Send tokens test", () => {
 
     it("Bridging tokens between to contracts", async () => {
         const approveTx = await l2TokenContract.approve(l2GatewayContract.address, 10, {
-            gasLimit: 5000000,
+            gasLimit: 30000000,
         });
         let approveTxReceipt = await approveTx.wait();
         expect(approveTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
@@ -157,7 +157,7 @@ describe("Send tokens test", () => {
             l1GatewayContract.signer.getAddress(),
             10,
             {
-                gasLimit: 5000000,
+                gasLimit: 30000000,
             }
         );
         console.log("l2TokenContract.address", l2TokenContract.address);
@@ -278,11 +278,11 @@ describe("Send tokens test", () => {
             receiveMessageReceipt.blockNumber,
         );
 
-        console.log(`bridgeBackEvents: ${bridgeBackEvents}`);
-        console.log(`errorBackEvents: ${errorBackEvents}`);
+        console.log(`bridgeBackEvents:`, bridgeBackEvents);
+        console.log(`errorBackEvents:`, errorBackEvents);
         expect(errorBackEvents.length).to.equal(0);
         expect(bridgeBackEvents.length).to.equal(1);
-        console.log(`gatewayBackEvents: ${gatewayBackEvents}`);
+        console.log(`gatewayBackEvents:`, gatewayBackEvents);
         expect(gatewayBackEvents.length).to.equal(1);
     });
 });
