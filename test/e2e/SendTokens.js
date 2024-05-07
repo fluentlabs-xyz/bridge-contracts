@@ -6,8 +6,8 @@ const TX_RECEIPT_STATUS_SUCCESS = 1;
 const TX_RECEIPT_STATUS_REVERT = 0;
 
 describe("Send tokens test", () => {
-    let ctxL2;
     let ctxL1;
+    let ctxL2;
 
     let l2TokenContract;
     let l2GatewayContract, l1GatewayContract;
