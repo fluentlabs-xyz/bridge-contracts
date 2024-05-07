@@ -28,6 +28,10 @@ test_TokenApprove:
 test_RestakeTokens:
 	$(MAKE) _run_test TEST_NAME=RestakeTokens
 
+.PHONY: test_RestakeTokens_old
+test_RestakeTokens_old:
+	$(MAKE) _run_test TEST_NAME=RestakeTokens_old
+
 .PHONY: test_SendTokens
 test_SendTokens:
 	$(MAKE) _run_test TEST_NAME=SendTokens

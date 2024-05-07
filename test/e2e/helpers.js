@@ -50,4 +50,3 @@ class TestingCtx {
 module.exports = {
     TestingCtx
 }
-
