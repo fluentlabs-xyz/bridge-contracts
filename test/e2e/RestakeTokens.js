@@ -18,7 +18,9 @@ describe("Contract deployment and interaction", function () {
     let restakingPoolContract;
     let liquidityTokenContract;
     const RESTAKER_PROVIDER = "RESTAKER_PROVIDER"
-
+    
+    let l2GasLimit = 100_000_000;
+    let l1GasLimit = 30000000;
     before(async () => {
         ctxL1 = TestingCtx.new_L1();
         ctxL2 = TestingCtx.new_L2();
@@ -92,7 +94,7 @@ describe("Contract deployment and interaction", function () {
             l2owner.address,
             l2owner.address,
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         );
         await protocolConfigContract.deployed();
@@ -103,7 +105,7 @@ describe("Contract deployment and interaction", function () {
             protocolConfigContract.address,
             "40000",
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         );
         await ratioFeedContract.deployed();
@@ -119,7 +121,7 @@ describe("Contract deployment and interaction", function () {
             'Liquidity Token',
             'lETH',
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         );
         await liquidityTokenContract.deployed();
@@ -129,7 +131,7 @@ describe("Contract deployment and interaction", function () {
             liquidityTokenContract.address,
             1000,
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         );
         await updateRatioTx.wait();
@@ -145,7 +147,7 @@ describe("Contract deployment and interaction", function () {
             '200000',
             '200000000000000000000',
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         );
         await restakingPoolContract.deployed();
@@ -160,7 +162,7 @@ describe("Contract deployment and interaction", function () {
             protocolConfigContract.address,
             '1500',
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         );
         await feeCollectorContract.deployed();
@@ -168,7 +170,7 @@ describe("Contract deployment and interaction", function () {
         console.log(`erc20PeggedTokenContract started`);
         const erc20PeggedTokenFactory = await ethers.getContractFactory("ERC20PeggedToken");
         let erc20PeggedTokenContract = await erc20PeggedTokenFactory.connect(l2owner).deploy({
-            gasLimit: 100_000_000,
+            gasLimit: l2GasLimit,
         });
         await erc20PeggedTokenContract.deployed();
 
@@ -177,7 +179,7 @@ describe("Contract deployment and interaction", function () {
         let erc20TokenFactoryContract = await erc20TokenFactoryFactory.connect(l2owner).deploy(
             erc20PeggedTokenContract.address,
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         );
         await erc20TokenFactoryContract.deployed();
@@ -190,7 +192,7 @@ describe("Contract deployment and interaction", function () {
             erc20TokenFactoryContract.address,
             {
                 // value: ethers.utils.parseEther("50"),
-                gas_limit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         );
         await restakerGatewayContract.deployed();
@@ -203,7 +205,7 @@ describe("Contract deployment and interaction", function () {
             "0x0000000000000000000000000000000000000000",
             0,
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         )
         await eigenPodMockContract.deployed();
@@ -214,7 +216,7 @@ describe("Contract deployment and interaction", function () {
             eigenPodMockContract.address,
             await l2owner.getAddress(),
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         );
         await upgradeableBeaconContract.deployed();
@@ -227,7 +229,7 @@ describe("Contract deployment and interaction", function () {
             "0x0000000000000000000000000000000000000000",
             "0x0000000000000000000000000000000000000000",
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         )
         await eigenPodManagerMockContract.deployed();
@@ -235,7 +237,7 @@ describe("Contract deployment and interaction", function () {
         console.log(`delegationManagerMockContract started`);
         const delegationManagerMockFactory = await ethers.getContractFactory("DelegationManagerMock");
         let delegationManagerMockContract = await delegationManagerMockFactory.connect(l2owner).deploy({
-            gasLimit: 100_000_000,
+            gasLimit: l2GasLimit,
         })
         await delegationManagerMockContract.deployed();
 
@@ -246,7 +248,7 @@ describe("Contract deployment and interaction", function () {
             eigenPodManagerMockContract.address,
             delegationManagerMockContract.address,
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         );
         await restakerFacetsContract.deployed();
@@ -254,7 +256,7 @@ describe("Contract deployment and interaction", function () {
 
         const restakerFactory = await ethers.getContractFactory('Restaker');
         let restakerContract = await restakerFactory.connect(l2owner).deploy({
-            gasLimit: 100_000_000,
+            gasLimit: l2GasLimit,
         });
         await restakerContract.deployed();
         console.log("restakerContract.address:", restakerContract.address);
@@ -263,7 +265,7 @@ describe("Contract deployment and interaction", function () {
             restakerContract.address,
             await l2owner.getAddress(),
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         );
         await upgradeableBeaconContract.deployed();
@@ -274,7 +276,7 @@ describe("Contract deployment and interaction", function () {
             upgradeableBeaconContract.address,
             restakerFacetsContract.address,
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             }
         );
         await restakerDeployerContract.deployed();
@@ -404,7 +406,7 @@ describe("Contract deployment and interaction", function () {
             l1GatewayContract.signer.getAddress(),
             {
                 value: "32000000000000000000",
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             },
         );
         let sendRestakedTokensTxReceipt = await sendRestakedTokensTx.wait();
@@ -431,7 +433,7 @@ describe("Contract deployment and interaction", function () {
             sentEvent.args["nonce"],
             sentEvent.args["data"],
             {
-                gasLimit: 100_000_000,
+                gasLimit: l1GasLimit,
             },
         );
         await receiveMessageTx.wait();
@@ -475,7 +477,7 @@ describe("Contract deployment and interaction", function () {
                 '0x50021ea68edb12aaa54fc8a2706b2f4b1d35d1406512fc6de230e0ea0391cf97',
             ],
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             },
         );
         await batchDepositTx.wait();
@@ -485,7 +487,7 @@ describe("Contract deployment and interaction", function () {
             RESTAKER_PROVIDER,
             0,
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             },
         );
         await claimRestakerTx.wait()
@@ -497,7 +499,7 @@ describe("Contract deployment and interaction", function () {
         let peggedTokenAddress = await l1RestakerGatewayContract.computePeggedTokenAddress(
             liquidityTokenContract.address,
             {
-                gasLimit: 100_000_000,
+                gasLimit: l1GasLimit,
             },
         );
         let peggedTokenContract = new ethers.Contract(
@@ -513,7 +515,7 @@ describe("Contract deployment and interaction", function () {
             l2Addresses[3],
             10,
             {
-                gasLimit: 100_000_000,
+                gasLimit: l1GasLimit,
             },
         );
         console.log("liquidityTokenContract.address:", liquidityTokenContract.address);
@@ -538,7 +540,7 @@ describe("Contract deployment and interaction", function () {
             messageHash,
             deposits,
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             },
         );
         await acceptNextProofTx.wait();
@@ -552,7 +554,7 @@ describe("Contract deployment and interaction", function () {
             [],
             1,
             {
-                gasLimit: 100_000_000,
+                gasLimit: l2GasLimit,
             },
         );
         await receiveMessageWithProofTx.wait();
@@ -584,7 +586,7 @@ describe("Contract deployment and interaction", function () {
 
 
         let distributeUnstakesTx = await restakingPoolContract.distributeUnstakes({
-            gasLimit: 100_000_000,
+            gasLimit: l2GasLimit,
         });
         await distributeUnstakesTx.wait()
     });
