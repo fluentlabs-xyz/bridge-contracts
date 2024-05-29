@@ -76,11 +76,11 @@ describe("Send tokens test", () => {
 
         let rollupContractAddress = "0x0000000000000000000000000000000000000000";
         if (withRollup) {
-            log(`bridgeContract started`)
             const rollupFactory = await ethers.getContractFactory("Rollup");
+            log(`rollupContract started`)
             rollupContract = await rollupFactory.connect(owner).deploy();
             rollupContractAddress = rollupContract.address;
-            log("Rollup address:", rollupContractAddress);
+            log("rollupContractAddress:", rollupContractAddress);
             let rollupContractTxReceipt = await rollupContract.deployTransaction.wait();
             expect(rollupContractTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
         }
@@ -94,12 +94,14 @@ describe("Send tokens test", () => {
         await bridgeContract.deployed();
         log(`bridgeContract.address: ${bridgeContract.address}`);
         let bridgeContractTxReceipt = await bridgeContract.deployTransaction.wait();
+        log(`bridgeContractTxReceipt:`, bridgeContractTxReceipt)
         expect(bridgeContractTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
         if (withRollup) {
             log(`setBridgeTx started`)
             let setBridgeTx = await rollupContract.setBridge(bridgeContract.address);
             let setBridgeTxReceipt = await setBridgeTx.wait();
+            log(`setBridgeTxReceipt:`, setBridgeTxReceipt)
             expect(setBridgeTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
         }
 
@@ -111,6 +113,7 @@ describe("Send tokens test", () => {
         await erc20TokenContract.deployed();
         log(`erc20tokenContract.address: ${erc20TokenContract.address}`);
         let erc20tokenContractTxReceipt = await erc20TokenContract.deployTransaction.wait();
+        log(`erc20tokenContractTxReceipt:`, erc20tokenContractTxReceipt)
         expect(erc20tokenContractTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
         log(`erc20GatewayContract started`)
@@ -120,6 +123,7 @@ describe("Send tokens test", () => {
             erc20TokenContract.address,
             {
                 value: ethers.utils.parseEther("1000"),
+                gasLimit: 300_000_000,
             },
         );
         await erc20GatewayContract.deployed();
@@ -133,6 +137,7 @@ describe("Send tokens test", () => {
         });
         let transferOwnershipTxReceipt = await transferOwnershipTx.wait();
         log("erc20TokenContract.owner:", await erc20TokenContract.owner());
+        log(`transferOwnershipTxReceipt:`, transferOwnershipTxReceipt)
         expect(transferOwnershipTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
         return [erc20GatewayContract, bridgeContract, peggedTokenContract.address, erc20TokenContract.address];
@@ -144,11 +149,12 @@ describe("Send tokens test", () => {
         expect(peggedTokenAddress).to.equal(otherSidePeggedTokenAddress);
     });
 
-    it("Bridging tokens between to contracts", async () => {
+    it("Bridging tokens between contracts", async () => {
         const approveTx = await l2TokenContract.approve(l2GatewayContract.address, 10, {
             gasLimit: 300_000_000,
         });
         let approveTxReceipt = await approveTx.wait();
+        log(`approveTxReceipt:`, approveTxReceipt)
         expect(approveTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
         log("l2GatewayContract.sendTokens");
@@ -162,6 +168,7 @@ describe("Send tokens test", () => {
         );
         log("l2TokenContract.address", l2TokenContract.address);
         let sendTokensReceipt = await sendTokensTx.wait();
+        log(`sendTokensReceipt:`, sendTokensReceipt)
         expect(sendTokensReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
         log(`getting l2BridgeContractSentMessageEvents (address ${l2BridgeContract.address})`)
@@ -187,6 +194,7 @@ describe("Send tokens test", () => {
             l2BridgeContractSentMessageEvent0.args["data"],
         );
         let receiveMessageReceipt = await receiveMessageTx.wait();
+        log(`receiveMessageReceipt:`, receiveMessageReceipt)
         expect(receiveMessageReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
         log(`getting l1BridgeContractReceivedMessageEvents (address ${l1BridgeContract.address})`)
@@ -230,6 +238,7 @@ describe("Send tokens test", () => {
         );
         log(`l2TokenContract.address ${l2TokenContract.address}`);
         let sendTokensBackTxReceipt = await sendTokensBackTx.wait();
+        log(`sendTokensBackTxReceipt:`, sendTokensBackTxReceipt)
         expect(sendTokensBackTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
         log(`getting l1BridgeContractSentMessageEvents (address: ${l1BridgeContract.address})`)
@@ -244,9 +253,16 @@ describe("Send tokens test", () => {
         const sentBackEvent = l1BridgeContractSentMessageEvents[0];
 
         let sendMessageHashBuffer = Buffer.from(sendMessageHash.substring(2), "hex");
-        // log(`sendMessageHashBuffer: ${sendMessageHashBuffer}`);
-        const acceptNextTx = await rollupContract.acceptNextProof(1, messageHash, sendMessageHashBuffer);
+        const acceptNextTx = await rollupContract.acceptNextProof(
+            1,
+            messageHash,
+            sendMessageHashBuffer,
+            {
+                gasLimit: 300_000_000,
+            }
+        );
         let acceptNextTxReceipt = await acceptNextTx.wait();
+        log(`acceptNextTxReceipt:`, acceptNextTxReceipt)
         expect(acceptNextTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
         const receiveMessageWithProofTx = await l2BridgeContract.receiveMessageWithProof(
@@ -257,8 +273,12 @@ describe("Send tokens test", () => {
             sentBackEvent.args["data"],
             [],
             1,
+            {
+                gasLimit: 300_000_000,
+            }
         );
         let receiveMessageWithProofTxReceipt = await receiveMessageWithProofTx.wait();
+        log(`receiveMessageWithProofTxReceipt:`, receiveMessageWithProofTxReceipt)
         expect(receiveMessageWithProofTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
         log(`getting l2BridgeContractReceivedMessageEvents (contract address: ${l2BridgeContract.address})`)
