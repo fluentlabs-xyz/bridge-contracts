@@ -1,6 +1,6 @@
 const {expect} = require("chai");
 const {ethers, artifacts} = require("hardhat");
-const {TestingCtx} = require("./helpers");
+const {TestingCtx, log} = require("./helpers");
 
 describe("Contract deployment and interaction", function () {
     let ctxL1;
@@ -18,7 +18,7 @@ describe("Contract deployment and interaction", function () {
     let restakingPoolContract;
     let liquidityTokenContract;
     const RESTAKER_PROVIDER = "RESTAKER_PROVIDER"
-    
+
     let l2GasLimit = 100_000_000;
     let l1GasLimit = 30000000;
     before(async () => {
@@ -40,9 +40,9 @@ describe("Contract deployment and interaction", function () {
             ctxL1.owner().address,
         ); // Adjust initial supply as needed
         await l1TokenContract.deployed();
-        console.log("l1TokenContract.address:", l1TokenContract.address);
+        log("l1TokenContract.address:", l1TokenContract.address);
 
-        console.log("L1 gw:", l1GatewayContract.address, "L2 gw:", l2GatewayContract.address);
+        log("L1 gw:", l1GatewayContract.address, "L2 gw:", l2GatewayContract.address);
 
         [
             l2RestakerGatewayContract,
@@ -51,12 +51,12 @@ describe("Contract deployment and interaction", function () {
             l2RestakerFactoryContract,
             l2RestakerImplementationContract,
         ] = await SetUpL2Restaker(l2BridgeContract.address);
-        console.log("l2RestakerGatewayContract.address:", l2RestakerGatewayContract.address);
+        log("l2RestakerGatewayContract.address:", l2RestakerGatewayContract.address);
 
         [l1RestakerGatewayContract, l1RestakerFactoryContract, l1RestakerImplementationContract] = await SetUpL1Restaker(l1BridgeContract.address)
 
         l1RestakerGatewayContract.setLiquidityToken(liquidityTokenContract.address);
-        console.log("L2 Restaker gateway: ", l1RestakerGatewayContract.address)
+        log("L2 Restaker gateway: ", l1RestakerGatewayContract.address)
         let tx = await l2RestakerGatewayContract.setOtherSide(
             l1RestakerGatewayContract.address,
             l1RestakerImplementationContract.address,
@@ -87,7 +87,7 @@ describe("Contract deployment and interaction", function () {
     async function SetUpL2Restaker(bridgeAddress) {
         let l2owner = ctxL2.owner();
 
-        console.log(`protocolConfigContract started`)
+        log(`protocolConfigContract started`)
         const protocolConfigFactory = await ethers.getContractFactory("ProtocolConfig");
         let protocolConfigContract = await protocolConfigFactory.connect(l2owner).deploy(
             l2owner.address,
@@ -99,7 +99,7 @@ describe("Contract deployment and interaction", function () {
         );
         await protocolConfigContract.deployed();
 
-        console.log(`ratioFeedFactory started`);
+        log(`ratioFeedFactory started`);
         const ratioFeedFactory = await ethers.getContractFactory("RatioFeed");
         let ratioFeedContract = await ratioFeedFactory.connect(l2owner).deploy(
             protocolConfigContract.address,
@@ -110,11 +110,11 @@ describe("Contract deployment and interaction", function () {
         );
         await ratioFeedContract.deployed();
 
-        console.log(`setRatioFeed started`);
+        log(`setRatioFeed started`);
         let setRatioFeedTx = await protocolConfigContract.setRatioFeed(ratioFeedContract.address)
         await setRatioFeedTx.wait()
 
-        console.log(`liquidityTokenContract started`);
+        log(`liquidityTokenContract started`);
         const LiquidityTokenFactory = await ethers.getContractFactory("LiquidityToken");
         let liquidityTokenContract = await LiquidityTokenFactory.connect(l2owner).deploy(
             protocolConfigContract.address,
@@ -126,7 +126,7 @@ describe("Contract deployment and interaction", function () {
         );
         await liquidityTokenContract.deployed();
 
-        console.log(`updateRatioTx started`);
+        log(`updateRatioTx started`);
         let updateRatioTx = await ratioFeedContract.updateRatio(
             liquidityTokenContract.address,
             1000,
@@ -136,11 +136,11 @@ describe("Contract deployment and interaction", function () {
         );
         await updateRatioTx.wait();
 
-        console.log("liquidityTokenContract.address:", liquidityTokenContract.address)
+        log("liquidityTokenContract.address:", liquidityTokenContract.address)
         let setLiquidityTokenTx = await protocolConfigContract.setLiquidityToken(liquidityTokenContract.address)
         await setLiquidityTokenTx.wait()
 
-        console.log(`restakingPoolContract started`);
+        log(`restakingPoolContract started`);
         const restakingPoolFactory = await ethers.getContractFactory("RestakingPool");
         let restakingPoolContract = await restakingPoolFactory.connect(l2owner).deploy(
             protocolConfigContract.address,
@@ -151,12 +151,12 @@ describe("Contract deployment and interaction", function () {
             }
         );
         await restakingPoolContract.deployed();
-        console.log("restakingPoolContract.address:", restakingPoolContract.address);
+        log("restakingPoolContract.address:", restakingPoolContract.address);
 
         let setRestakingPoolTx = await protocolConfigContract.setRestakingPool(restakingPoolContract.address)
         await setRestakingPoolTx.wait()
 
-        console.log(`feeCollectorContract started`);
+        log(`feeCollectorContract started`);
         const feeCollectorFactory = await ethers.getContractFactory("FeeCollector");
         let feeCollectorContract = await feeCollectorFactory.connect(l2owner).deploy(
             protocolConfigContract.address,
@@ -167,14 +167,14 @@ describe("Contract deployment and interaction", function () {
         );
         await feeCollectorContract.deployed();
 
-        console.log(`erc20PeggedTokenContract started`);
+        log(`erc20PeggedTokenContract started`);
         const erc20PeggedTokenFactory = await ethers.getContractFactory("ERC20PeggedToken");
         let erc20PeggedTokenContract = await erc20PeggedTokenFactory.connect(l2owner).deploy({
             gasLimit: l2GasLimit,
         });
         await erc20PeggedTokenContract.deployed();
 
-        console.log(`erc20TokenFactoryContract started`);
+        log(`erc20TokenFactoryContract started`);
         const erc20TokenFactoryFactory = await ethers.getContractFactory("ERC20TokenFactory");
         let erc20TokenFactoryContract = await erc20TokenFactoryFactory.connect(l2owner).deploy(
             erc20PeggedTokenContract.address,
@@ -184,7 +184,7 @@ describe("Contract deployment and interaction", function () {
         );
         await erc20TokenFactoryContract.deployed();
 
-        console.log(`restakerGatewayContract started`);
+        log(`restakerGatewayContract started`);
         const restakerGatewayFactory = await ethers.getContractFactory("RestakerGateway");
         let restakerGatewayContract = await restakerGatewayFactory.connect(l2owner).deploy(
             bridgeAddress,
@@ -196,7 +196,7 @@ describe("Contract deployment and interaction", function () {
             }
         );
         await restakerGatewayContract.deployed();
-        console.log("restakerGatewayContract.address:", restakerGatewayContract.address);
+        log("restakerGatewayContract.address:", restakerGatewayContract.address);
 
         const eigenPodMockFactory = await ethers.getContractFactory("EigenPodMock");
         let eigenPodMockContract = await eigenPodMockFactory.connect(l2owner).deploy(
@@ -210,7 +210,7 @@ describe("Contract deployment and interaction", function () {
         )
         await eigenPodMockContract.deployed();
 
-        console.log(`restakerGatewayContract started`);
+        log(`restakerGatewayContract started`);
         const upgradeableBeaconFactory = await ethers.getContractFactory('UpgradeableBeacon');
         let upgradeableBeaconContract = await upgradeableBeaconFactory.connect(l2owner).deploy(
             eigenPodMockContract.address,
@@ -221,7 +221,7 @@ describe("Contract deployment and interaction", function () {
         );
         await upgradeableBeaconContract.deployed();
 
-        console.log(`eigenPodManagerMockContract started`);
+        log(`eigenPodManagerMockContract started`);
         const eigenPodManagerMockFactory = await ethers.getContractFactory("EigenPodManagerMock");
         let eigenPodManagerMockContract = await eigenPodManagerMockFactory.connect(l2owner).deploy(
             "0x0000000000000000000000000000000000000000",
@@ -234,14 +234,14 @@ describe("Contract deployment and interaction", function () {
         )
         await eigenPodManagerMockContract.deployed();
 
-        console.log(`delegationManagerMockContract started`);
+        log(`delegationManagerMockContract started`);
         const delegationManagerMockFactory = await ethers.getContractFactory("DelegationManagerMock");
         let delegationManagerMockContract = await delegationManagerMockFactory.connect(l2owner).deploy({
             gasLimit: l2GasLimit,
         })
         await delegationManagerMockContract.deployed();
 
-        console.log(`restakerFacetsFactory started`);
+        log(`restakerFacetsFactory started`);
         const restakerFacetsFactory = await ethers.getContractFactory("RestakerFacets");
         let restakerFacetsContract = await restakerFacetsFactory.connect(l2owner).deploy(
             l2owner.getAddress(),
@@ -252,14 +252,14 @@ describe("Contract deployment and interaction", function () {
             }
         );
         await restakerFacetsContract.deployed();
-        console.log("restakerFacetsContract.address:", restakerFacetsContract.address);
+        log("restakerFacetsContract.address:", restakerFacetsContract.address);
 
         const restakerFactory = await ethers.getContractFactory('Restaker');
         let restakerContract = await restakerFactory.connect(l2owner).deploy({
             gasLimit: l2GasLimit,
         });
         await restakerContract.deployed();
-        console.log("restakerContract.address:", restakerContract.address);
+        log("restakerContract.address:", restakerContract.address);
 
         upgradeableBeaconContract = await upgradeableBeaconFactory.connect(l2owner).deploy(
             restakerContract.address,
@@ -269,7 +269,7 @@ describe("Contract deployment and interaction", function () {
             }
         );
         await upgradeableBeaconContract.deployed();
-        console.log("upgradeableBeaconContract.address:", upgradeableBeaconContract.address);
+        log("upgradeableBeaconContract.address:", upgradeableBeaconContract.address);
 
         const restakerDeployerFactory = await ethers.getContractFactory("RestakerDeployer");
         let restakerDeployerContract = await restakerDeployerFactory.connect(l2owner).deploy(
@@ -280,7 +280,7 @@ describe("Contract deployment and interaction", function () {
             }
         );
         await restakerDeployerContract.deployed();
-        console.log("restakerDeployerContract.address:", restakerDeployerContract.address);
+        log("restakerDeployerContract.address:", restakerDeployerContract.address);
 
         let setRestakerDeployerTx = await protocolConfigContract.setRestakerDeployer(restakerDeployerContract.address)
         await setRestakerDeployerTx.wait()
@@ -323,14 +323,14 @@ describe("Contract deployment and interaction", function () {
     }
 
     async function SetUpChain(ctx, withRollup) {
-        console.log(`${ctx.networkName}: SetUpChain withRollup=${withRollup}`)
+        log(`${ctx.networkName}: SetUpChain withRollup=${withRollup}`)
 
         let owner = ctx.owner()
 
         const erc20PeggedTokenFactory = await ethers.getContractFactory("ERC20PeggedToken");
         let erc20PeggedTokenContract = await erc20PeggedTokenFactory.connect(owner).deploy();
         await erc20PeggedTokenContract.deployed();
-        console.log("erc20PeggedTokenContract.address:", erc20PeggedTokenContract.address);
+        log("erc20PeggedTokenContract.address:", erc20PeggedTokenContract.address);
 
         const bridgeFactory = await ethers.getContractFactory("Bridge");
         const ownerAddresses = await ctx.listAddresses();
@@ -340,7 +340,7 @@ describe("Contract deployment and interaction", function () {
             const rollupFactory = await ethers.getContractFactory("Rollup");
             rollupContract = await rollupFactory.connect(owner).deploy();
             rollupAddress = rollupContract.address;
-            console.log("rollupAddress:", rollupAddress);
+            log("rollupAddress:", rollupAddress);
         }
 
         let bridgeContract = await bridgeFactory.connect(owner).deploy(
@@ -348,7 +348,7 @@ describe("Contract deployment and interaction", function () {
             rollupAddress,
         );
         await bridgeContract.deployed();
-        console.log("bridgeContract.address:", bridgeContract.address);
+        log("bridgeContract.address:", bridgeContract.address);
 
         if (withRollup) {
             let setBridgeTx = await rollupContract.setBridge(bridgeContract.address);
@@ -360,7 +360,7 @@ describe("Contract deployment and interaction", function () {
             erc20PeggedTokenContract.address,
         );
         await erc20TokenFactoryContract.deployed();
-        console.log("erc20TokenFactoryContract.address:", erc20TokenFactoryContract.address);
+        log("erc20TokenFactoryContract.address:", erc20TokenFactoryContract.address);
 
         const erc20GatewayFactory = await ethers.getContractFactory("ERC20Gateway");
         let erc20GatewayContract = await erc20GatewayFactory.connect(owner).deploy(
@@ -371,13 +371,13 @@ describe("Contract deployment and interaction", function () {
             },
         );
 
-        console.log("erc20TokenFactoryContract.owner:", await erc20TokenFactoryContract.owner());
+        log("erc20TokenFactoryContract.owner:", await erc20TokenFactoryContract.owner());
         const transferOwnershipTx = await erc20TokenFactoryContract.transferOwnership(erc20GatewayContract.address);
         await transferOwnershipTx.wait();
-        console.log("erc20TokenFactoryContract.owner:", await erc20TokenFactoryContract.owner());
+        log("erc20TokenFactoryContract.owner:", await erc20TokenFactoryContract.owner());
 
         await erc20GatewayContract.deployed();
-        console.log("erc20GatewayContract.address:", erc20GatewayContract.address);
+        log("erc20GatewayContract.address:", erc20GatewayContract.address);
 
         return [erc20GatewayContract, bridgeContract, erc20PeggedTokenContract.address, erc20TokenFactoryContract.address];
     }
@@ -394,10 +394,10 @@ describe("Contract deployment and interaction", function () {
         const approveTx = await l1TokenContract.approve(l2GatewayContract.address, 100);
         await approveTx.wait();
 
-        console.log("Token send");
+        log("Token send");
 
         let liquidityTokenAmount = await liquidityTokenContract.convertToAmount(1);
-        console.log("liquidityTokenContract.address:", liquidityTokenContract.address, "liquidityTokenAmount:", liquidityTokenAmount)
+        log("liquidityTokenContract.address:", liquidityTokenContract.address, "liquidityTokenAmount:", liquidityTokenAmount)
         for (let v of [ctxL1, ctxL2]) {
             await v.printDebugInfoAsync()
         }
@@ -410,7 +410,7 @@ describe("Contract deployment and interaction", function () {
             },
         );
         let sendRestakedTokensTxReceipt = await sendRestakedTokensTx.wait();
-        console.log("liquidityTokenContract.address:", liquidityTokenContract.address);
+        log("liquidityTokenContract.address:", liquidityTokenContract.address);
 
         const l1BridgeSentMessageEvents = await l2BridgeContract.queryFilter(
             "SentMessage",
@@ -423,8 +423,8 @@ describe("Contract deployment and interaction", function () {
 
         let sendMessageHash = sentEvent.args["messageHash"];
 
-        console.log("sendMessageHash:", sendMessageHash);
-        console.log("sentEvent:", sentEvent);
+        log("sendMessageHash:", sendMessageHash);
+        log("sentEvent:", sentEvent);
 
         const receiveMessageTx = await l1BridgeContract.receiveMessage(
             sentEvent.args["sender"],
@@ -438,7 +438,7 @@ describe("Contract deployment and interaction", function () {
         );
         await receiveMessageTx.wait();
 
-        console.log(`receivedMessageEvents started`)
+        log(`receivedMessageEvents started`)
         const receivedMessageEvents = await l1BridgeContract.queryFilter(
             "ReceivedMessage",
             receiveMessageTx.blockNumber,
@@ -457,14 +457,14 @@ describe("Contract deployment and interaction", function () {
             receiveMessageTx.blockNumber,
         );
 
-        console.log("receivedMessageEvents:", receivedMessageEvents);
-        console.log("errorEvents:", errorEvents);
+        log("receivedMessageEvents:", receivedMessageEvents);
+        log("errorEvents:", errorEvents);
         expect(errorEvents.length).to.equal(0);
         expect(receivedMessageEvents.length).to.equal(1);
-        console.log("gatewayEvents:", gatewayEvents);
+        log("gatewayEvents:", gatewayEvents);
         expect(gatewayEvents.length).to.equal(1);
 
-        console.log(`batchDeposit started`)
+        log(`batchDeposit started`)
         let batchDepositTx = await restakingPoolContract.batchDeposit(
             RESTAKER_PROVIDER,
             [
@@ -482,7 +482,7 @@ describe("Contract deployment and interaction", function () {
         );
         await batchDepositTx.wait();
 
-        console.log(`claimRestaker started`)
+        log(`claimRestaker started`)
         let claimRestakerTx = await restakingPoolContract.claimRestaker(
             RESTAKER_PROVIDER,
             0,
@@ -495,7 +495,7 @@ describe("Contract deployment and interaction", function () {
         const erc20PeggedTokenArtifact = await artifacts.readArtifact("ERC20PeggedToken");
         const erc20PeggedTokenAbi = erc20PeggedTokenArtifact.abi;
 
-        console.log(`computePeggedTokenAddress started`)
+        log(`computePeggedTokenAddress started`)
         let peggedTokenAddress = await l1RestakerGatewayContract.computePeggedTokenAddress(
             liquidityTokenContract.address,
             {
@@ -507,10 +507,10 @@ describe("Contract deployment and interaction", function () {
             erc20PeggedTokenAbi,
             l1GatewayContract.signer,
         );
-        console.log("peggedTokenAddress:", peggedTokenAddress);
-        console.log("l1GatewayContract.signer.address:", await l1GatewayContract.signer.getAddress())
+        log("peggedTokenAddress:", peggedTokenAddress);
+        log("l1GatewayContract.signer.address:", await l1GatewayContract.signer.getAddress())
         let tokenAmount = await peggedTokenContract.balanceOf(l1GatewayContract.signer.getAddress());
-        console.log("tokenAmount:", tokenAmount);
+        log("tokenAmount:", tokenAmount);
         const sendUnstakingTokensTx = await l1RestakerGatewayContract.sendUnstakingTokens(
             l2Addresses[3],
             10,
@@ -518,7 +518,7 @@ describe("Contract deployment and interaction", function () {
                 gasLimit: l1GasLimit,
             },
         );
-        console.log("liquidityTokenContract.address:", liquidityTokenContract.address);
+        log("liquidityTokenContract.address:", liquidityTokenContract.address);
 
         await sendUnstakingTokensTx.wait();
 
@@ -530,11 +530,11 @@ describe("Contract deployment and interaction", function () {
         expect(sentMessageEvents.length).to.equal(1);
         let messageHash = sentMessageEvents[0].args.messageHash;
 
-        console.log(`sentMessageEvents:`, sentMessageEvents);
+        log(`sentMessageEvents:`, sentMessageEvents);
         const sentMessageEvent = sentMessageEvents[0];
 
         let deposits = Buffer.from(sendMessageHash.substring(2), "hex");
-        console.log(deposits);
+        log(deposits);
         const acceptNextProofTx = await rollupContract.acceptNextProof(
             1,
             messageHash,
@@ -577,11 +577,11 @@ describe("Contract deployment and interaction", function () {
             receiveMessageTx.blockNumber,
         );
 
-        console.log("bridgeBackEvents:", bridgeBackEvents);
-        console.log("errorBackEvents:", errorBackEvents);
+        log("bridgeBackEvents:", bridgeBackEvents);
+        log("errorBackEvents:", errorBackEvents);
         expect(errorBackEvents.length).to.equal(0);
         expect(bridgeBackEvents.length).to.equal(1);
-        console.log("gatewayBackEvents:", gatewayBackEvents);
+        log("gatewayBackEvents:", gatewayBackEvents);
         expect(gatewayBackEvents.length).to.equal(1);
 
 

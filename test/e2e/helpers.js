@@ -47,6 +47,12 @@ class TestingCtx {
     }
 }
 
+function log(...args) {
+    let datetime_str = new Date().toISOString();
+    console.log(`${datetime_str}`, ...args)
+}
+
 module.exports = {
-    TestingCtx
+    TestingCtx,
+    log
 }
