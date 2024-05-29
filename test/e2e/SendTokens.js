@@ -49,13 +49,17 @@ describe("Send tokens test", () => {
             l1ImplementationAddress,
             l1FactoryAddress,
         );
-        await setOtherSideTx.wait();
+        let setOtherSideReceipt = await setOtherSideTx.wait();
+        log(`setOtherSideReceipt:`, setOtherSideReceipt)
+        expect(setOtherSideReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
         setOtherSideTx = await l1GatewayContract.setOtherSide(
             l2GatewayContract.address,
             l2ImplementationAddress,
             l2FactoryAddress,
         );
-        await setOtherSideTx.wait();
+        setOtherSideReceipt = await setOtherSideTx.wait();
+        log(`setOtherSideReceipt:`, setOtherSideReceipt)
+        expect(setOtherSideReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
     });
 
     async function SetUpChain(ctx, withRollup = false) {
