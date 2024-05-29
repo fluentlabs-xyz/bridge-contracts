@@ -15,6 +15,9 @@ module.exports = {
         },
     },
     networks: {
+        hardhat: {
+            blockGasLimit: 300_000_000,
+        },
         L1: {
             url: `${helpers.evm_provider_url()}`,
             accounts: {
