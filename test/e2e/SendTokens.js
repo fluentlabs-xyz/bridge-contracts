@@ -175,6 +175,22 @@ describe("Send tokens test", () => {
         log(`sendTokensReceipt:`, sendTokensReceipt)
         expect(sendTokensReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
+        // if (true) {
+        //     log("l2GatewayContract.sendTokens (2nd)");
+        //     const sendTokensTx = await l2GatewayContract.sendTokens(
+        //         l2TokenContract.address,
+        //         l1GatewayContract.signer.getAddress(),
+        //         1,
+        //         {
+        //             gasLimit: 300_000_000,
+        //         }
+        //     );
+        //     log("l2TokenContract.address", l2TokenContract.address);
+        //     let sendTokensReceipt = await sendTokensTx.wait();
+        //     log(`sendTokensReceipt:`, sendTokensReceipt)
+        //     expect(sendTokensReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
+        // }
+
         log(`getting l2BridgeContractSentMessageEvents (address ${l2BridgeContract.address})`)
         let l2BridgeContractSentMessageEvents = await l2BridgeContract.queryFilter(
             "SentMessage",
@@ -190,27 +206,27 @@ describe("Send tokens test", () => {
         log("sendMessageHash:", sendMessageHash);
         log("l2BridgeContractSentMessageEvent0:", l2BridgeContractSentMessageEvent0);
 
-        const receiveMessageTx = await l1BridgeContract.receiveMessage(
+        const l1BridgeContractReceiveMessageTx = await l1BridgeContract.receiveMessage(
             l2BridgeContractSentMessageEvent0.args["sender"],
             l2BridgeContractSentMessageEvent0.args["to"],
             l2BridgeContractSentMessageEvent0.args["value"],
             l2BridgeContractSentMessageEvent0.args["nonce"],
             l2BridgeContractSentMessageEvent0.args["data"],
         );
-        let receiveMessageReceipt = await receiveMessageTx.wait();
-        log(`receiveMessageReceipt:`, receiveMessageReceipt)
-        expect(receiveMessageReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
+        let l1BridgeContractReceiveMessageReceipt = await l1BridgeContractReceiveMessageTx.wait();
+        log(`l1BridgeContractReceiveMessageReceipt:`, l1BridgeContractReceiveMessageReceipt)
+        expect(l1BridgeContractReceiveMessageReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
         log(`getting l1BridgeContractReceivedMessageEvents (address ${l1BridgeContract.address})`)
         const l1BridgeContractReceivedMessageEvents = await l1BridgeContract.queryFilter(
             "ReceivedMessage",
-            receiveMessageReceipt.blockNumber,
+            l1BridgeContractReceiveMessageReceipt.blockNumber,
         );
         log(`l1BridgeContractReceivedMessageEvents:`, l1BridgeContractReceivedMessageEvents)
         log(`getting l1BridgeContractErrorEvents`)
         const l1BridgeContractErrorEvents = await l1BridgeContract.queryFilter(
             "Error",
-            receiveMessageReceipt.blockNumber,
+            l1BridgeContractReceiveMessageReceipt.blockNumber,
         );
         log(`l1BridgeContractErrorEvents: ${l1BridgeContractErrorEvents} (address ${l1BridgeContract.address})`)
         const l1GatewayContractReceivedTokensEvents = await l1GatewayContract.queryFilter(
@@ -220,11 +236,11 @@ describe("Send tokens test", () => {
                     ethers.utils.id("ReceivedTokens(address,address,uint256)")
                 ]
             },
-            receiveMessageReceipt.blockNumber,
+            l1BridgeContractReceiveMessageReceipt.blockNumber,
         );
 
-        log(`errorEvents:`, l1BridgeContractErrorEvents);
-        log(`bridgeEvents:`, l1BridgeContractReceivedMessageEvents);
+        log(`l1BridgeContractErrorEvents:`, l1BridgeContractErrorEvents);
+        log(`l1BridgeContractReceivedMessageEvents:`, l1BridgeContractReceivedMessageEvents);
         expect(l1BridgeContractErrorEvents.length).to.equal(0);
         expect(l1BridgeContractReceivedMessageEvents.length).to.equal(1);
         log(`l1GatewayContractReceivedTokensEvents:`, l1GatewayContractReceivedTokensEvents);
@@ -269,7 +285,7 @@ describe("Send tokens test", () => {
         log(`acceptNextTxReceipt:`, acceptNextTxReceipt)
         expect(acceptNextTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
-        const receiveMessageWithProofTx = await l2BridgeContract.receiveMessageWithProof(
+        const l2BridgeContractReceiveMessageWithProofTx = await l2BridgeContract.receiveMessageWithProof(
             sentBackEvent.args["sender"],
             sentBackEvent.args["to"],
             sentBackEvent.args["value"],
@@ -281,19 +297,19 @@ describe("Send tokens test", () => {
                 gasLimit: 300_000_000,
             }
         );
-        let receiveMessageWithProofTxReceipt = await receiveMessageWithProofTx.wait();
-        log(`receiveMessageWithProofTxReceipt:`, receiveMessageWithProofTxReceipt)
-        expect(receiveMessageWithProofTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
+        let l2BridgeContractReceiveMessageWithProofReceipt = await l2BridgeContractReceiveMessageWithProofTx.wait();
+        log(`l2BridgeContractReceiveMessageWithProofReceipt:`, l2BridgeContractReceiveMessageWithProofReceipt)
+        expect(l2BridgeContractReceiveMessageWithProofReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
         log(`getting l2BridgeContractReceivedMessageEvents (contract address: ${l2BridgeContract.address})`)
         const l2BridgeContractReceivedMessageEvents = await l2BridgeContract.queryFilter(
             "ReceivedMessage",
-            receiveMessageReceipt.blockNumber,
+            l1BridgeContractReceiveMessageReceipt.blockNumber,
         );
         log(`getting l2BridgeContractErrorEvents (contract address: ${l2BridgeContract.address})`)
         const l2BridgeContractErrorEvents = await l2BridgeContract.queryFilter(
             "Error",
-            receiveMessageReceipt.blockNumber,
+            l1BridgeContractReceiveMessageReceipt.blockNumber,
         );
         log(`getting l2GatewayContractGatewayBackEvents`)
         const l2GatewayContractGatewayBackEvents = await l2GatewayContract.queryFilter(
@@ -303,7 +319,7 @@ describe("Send tokens test", () => {
                     ethers.utils.id("ReceivedTokens(address,address,uint256)")
                 ]
             },
-            receiveMessageReceipt.blockNumber,
+            l1BridgeContractReceiveMessageReceipt.blockNumber,
         );
 
         log(`l2BridgeContractErrorEvents:`, l2BridgeContractErrorEvents);
