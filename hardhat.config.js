@@ -2,7 +2,12 @@
 require("@nomiclabs/hardhat-ethers");
 require("@nomiclabs/hardhat-solhint");
 require('hardhat-abi-exporter');
+require("@nomicfoundation/hardhat-ignition-ethers");
+const { vars } = require("hardhat/config");
+
 helpers = require('./helpers')
+
+const HOLESKY_PRIVATE_KEY = vars.get("HOLESKY_PRIVATE_KEY");
 
 module.exports = {
     solidity: {
@@ -39,6 +44,10 @@ module.exports = {
             },
             chainId: 1337,
         },
+        holesky: {
+            url: "https://ethereum-holesky-rpc.publicnode.com",
+            accounts: [HOLESKY_PRIVATE_KEY],
+        }
     },
     mocha: {
         timeout: 1000000,  // Set the timeout to 60 seconds
