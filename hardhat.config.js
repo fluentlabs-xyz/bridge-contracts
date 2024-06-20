@@ -45,7 +45,7 @@ module.exports = {
             chainId: 1337,
         },
         holesky: {
-            url: "https://ethereum-holesky-rpc.publicnode.com",
+            url: "https://rpc.ankr.com/eth_holesky/1d15787fce59788be4e23d7bea5a964876ad2fc53128eff3534cf9d91117be67",
             accounts: [HOLESKY_PRIVATE_KEY],
         }
     },

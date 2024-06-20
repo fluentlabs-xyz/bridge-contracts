@@ -1,6 +1,7 @@
 const {expect} = require("chai");
 const {ethers} = require("hardhat");
 const {TestingCtx, log} = require("./helpers");
+const {sleep} = require("@nomicfoundation/hardhat-verify/internal/utilities");
 
 const TX_RECEIPT_STATUS_SUCCESS = 1;
 const TX_RECEIPT_STATUS_REVERT = 0;
@@ -97,6 +98,9 @@ describe("Send tokens test", () => {
 
         const bridgeFactory = await ethers.getContractFactory("Bridge");
         log(`bridgeContract started deploy`)
+
+        log("Nonce: ", await ethers.provider.getTransactionCount(owner.address))
+        await sleep(1000)
         let bridgeContract = await bridgeFactory.connect(owner).deploy(
             owner.address,
             rollupContractAddress,
@@ -114,6 +118,9 @@ describe("Send tokens test", () => {
             log(`setBridgeTxReceipt:`, setBridgeTxReceipt)
             expect(setBridgeTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
         }
+
+        log("Nonce: ", await ethers.provider.getTransactionCount(owner.address))
+        await sleep(1000)
 
         const erc20TokenFactory = await ethers.getContractFactory("ERC20TokenFactory");
         log(`erc20TokenContract started deploy`)
@@ -239,13 +246,16 @@ describe("Send tokens test", () => {
             l1BridgeContractReceiveMessageReceipt.blockNumber,
         );
         log(`l1BridgeContractErrorEvents: ${l1BridgeContractErrorEvents} (address ${l1BridgeContract.target})`)
+
+        log('Event: ', l1GatewayContract.target, l1BridgeContractReceiveMessageReceipt.blockNumber)
         const l1GatewayContractReceivedTokensEvents = await l1GatewayContract.queryFilter(
-            {
-                address: l1GatewayContract.target,
-                topics: [
-                    ethers.id("ReceivedTokens(address,address,uint256)")
-                ]
-            },
+            // {
+            //     address: l1GatewayContract.target,
+            //     topics: [
+            //         ethers.id("ReceivedTokens(address,address,uint256)")
+            //     ]
+            // },
+            "ReceivedTokens",
             l1BridgeContractReceiveMessageReceipt.blockNumber,
         );
 
@@ -299,13 +309,15 @@ describe("Send tokens test", () => {
         expect(acceptNextTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
         log(`started l2BridgeContractReceiveMessageWithProofTx`)
+        log("Args: ", sentBackEvent)
         const l2BridgeContractReceiveMessageWithProofTx = await l2BridgeContract.receiveMessageWithProof(
             sentBackEvent.args["sender"],
             sentBackEvent.args["to"],
-            sentBackEvent.args["value"],
-            sentBackEvent.args["nonce"],
+            sentBackEvent.args["value"].toString(),
+            sentBackEvent.args["nonce"].toString(),
             sentBackEvent.args["data"],
-            [],
+            // [],
+            "0x",
             1,
             {
                 gasLimit: 30_000_000,
@@ -327,12 +339,7 @@ describe("Send tokens test", () => {
         );
         log(`getting l2GatewayContractGatewayBackEvents`)
         const l2GatewayContractGatewayBackEvents = await l2GatewayContract.queryFilter(
-            {
-                address: l1GatewayContract.target,
-                topics: [
-                    ethers.utils.id("ReceivedTokens(address,address,uint256)")
-                ]
-            },
+            "ReceivedTokens",
             l1BridgeContractReceiveMessageReceipt.blockNumber,
         );
 
