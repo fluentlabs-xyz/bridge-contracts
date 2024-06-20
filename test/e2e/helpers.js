@@ -1,4 +1,5 @@
 const {ethers} = require("hardhat");
+const {Mnemonic} = require("ethers");
 const hre = require("hardhat");
 
 class TestingCtx {
@@ -8,11 +9,12 @@ class TestingCtx {
         }
         this.networkName = networkName
         this.networkConfig = hre.config.networks[networkName];
-        this.provider = new ethers.providers.JsonRpcProvider(this.networkConfig.url);
+        this.provider = new ethers.JsonRpcProvider(this.networkConfig.url);
         this.accounts = [];
         const {mnemonic, path, initialIndex, count} = this.networkConfig.accounts;
         for (let i = initialIndex; i < initialIndex + count; i++) {
-            let wallet = new ethers.Wallet.fromMnemonic(mnemonic, `${path}/${i}`).connect(this.provider);
+            const mnemonicInstance = Mnemonic.fromPhrase(mnemonic);
+            let wallet = ethers.HDNodeWallet.fromMnemonic(mnemonicInstance, `${path}/${i}`).connect(this.provider);
             this.accounts.push(wallet);
         }
     }
