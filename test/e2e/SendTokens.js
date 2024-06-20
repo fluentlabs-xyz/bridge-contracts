@@ -249,12 +249,6 @@ describe("Send tokens test", () => {
 
         log('Event: ', l1GatewayContract.target, l1BridgeContractReceiveMessageReceipt.blockNumber)
         const l1GatewayContractReceivedTokensEvents = await l1GatewayContract.queryFilter(
-            // {
-            //     address: l1GatewayContract.target,
-            //     topics: [
-            //         ethers.id("ReceivedTokens(address,address,uint256)")
-            //     ]
-            // },
             "ReceivedTokens",
             l1BridgeContractReceiveMessageReceipt.blockNumber,
         );
