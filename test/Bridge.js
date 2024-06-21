@@ -12,23 +12,23 @@ describe("Bridge", function () {
     const BridgeContract = await ethers.getContractFactory("Bridge");
     const accounts = await hre.ethers.getSigners();
 
-    bridge = await BridgeContract.deploy(accounts[0].address, rollup.address);
-    await bridge.deployed();
+    bridge = await BridgeContract.deploy(accounts[0].address, rollup.target);
+    bridge = await bridge.waitForDeployment();
 
-    let setBridge = await rollup.setBridge(bridge.address);
+    let setBridge = await rollup.setBridge(bridge.target);
     await setBridge.wait();
   });
 
   it("Send message test", async function () {
     const accounts = await hre.ethers.getSigners();
     const contractWithSigner = bridge.connect(accounts[0]);
-    const orgign_bridge_balance = await hre.ethers.provider.getBalance(
-      bridge.address,
+    const origin_bridge_balance = await hre.ethers.provider.getBalance(
+      bridge.target,
     );
 
     const send_tx = await contractWithSigner.sendMessage(
       "0x1111111111111111111111111111111111111111",
-      [1, 2, 3, 4, 5],
+      "0x0102030405",
       { value: 2000 },
     );
 
@@ -40,10 +40,10 @@ describe("Bridge", function () {
 
     expect(events[0].args.sender).to.equal(await accounts[0].getAddress());
 
-    const bridge_balance = await hre.ethers.provider.getBalance(bridge.address);
+    const bridge_balance = await hre.ethers.provider.getBalance(bridge.target);
 
-    expect(bridge_balance.sub(orgign_bridge_balance)).to.be.eql(
-      BigNumber.from(2000),
+    expect(bridge_balance - origin_bridge_balance).to.be.eql(
+      2000n,
     );
   });
 
@@ -61,16 +61,16 @@ describe("Bridge", function () {
       receiverAddress,
       200,
       0,
-      [],
+      "0x",
     );
 
     await receive_tx.wait();
 
     const error_events = await bridge.queryFilter(
-        "Error",
-        receive_tx.blockNumber,
+      "Error",
+      receive_tx.blockNumber,
     );
-    console.log("Error: ", error_events)
+    console.log("Error: ", error_events);
 
     const events = await bridge.queryFilter(
       "ReceivedMessage",
@@ -84,10 +84,12 @@ describe("Bridge", function () {
     expect(events[0].args.successfulCall).to.equal(true);
 
     const new_balance = await hre.ethers.provider.getBalance(receiverAddress);
-    expect(new_balance.sub(origin_balance)).to.be.eql(BigNumber.from(200));
+    expect(new_balance - origin_balance).to.be.eql(200n);
 
-    let messageStatus = await bridge.receivedMessage(events[0].args.messageHash)
-    console.log("Message status: ", messageStatus)
+    let messageStatus = await bridge.receivedMessage(
+      events[0].args.messageHash,
+    );
+    console.log("Message status: ", messageStatus);
 
     try {
       const repeat_receive_tx = await contractWithSigner.receiveMessage(
@@ -95,7 +97,7 @@ describe("Bridge", function () {
         receiverAddress,
         200,
         0,
-        [],
+        "0x",
       );
 
       await repeat_receive_tx.wait();
@@ -114,7 +116,7 @@ describe("Bridge", function () {
     await rollupContractWithSigner.acceptNextProof(
       1,
       "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
-      [],
+      "0x",
     );
 
     const contractWithSigner = bridge.connect(accounts[0]);
@@ -129,8 +131,8 @@ describe("Bridge", function () {
       receiverAddress,
       100,
       0,
-      [],
-      [],
+      "0x",
+      "0x",
       1,
     );
 
@@ -148,12 +150,12 @@ describe("Bridge", function () {
     expect(events[0].args.successfulCall).to.equal(true);
 
     let new_balance = await hre.ethers.provider.getBalance(receiverAddress);
-    expect(new_balance.sub(origin_balance)).to.be.eql(BigNumber.from(100));
+    expect(new_balance - origin_balance).to.be.eql(100n);
 
     await rollupContractWithSigner.acceptNextProof(
       2,
       "0x3e13975f9e4165cf4119f2f82528f20d0ba7d1ab18cf62b0e07a625fdcb600ba",
-      [],
+      "0x",
     );
 
     receive_tx = await contractWithSigner.receiveMessageWithProof(
@@ -161,7 +163,7 @@ describe("Bridge", function () {
       receiverAddress,
       100,
       1,
-      [],
+      "0x",
       Buffer.from(
         "1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
         "hex",
@@ -181,12 +183,12 @@ describe("Bridge", function () {
     expect(events[0].args.successfulCall).to.equal(true);
 
     new_balance = await hre.ethers.provider.getBalance(receiverAddress);
-    expect(new_balance.sub(origin_balance)).to.be.eql(BigNumber.from(200));
+    expect(new_balance - origin_balance).to.be.eql(200n);
 
     await rollupContractWithSigner.acceptNextProof(
       3,
       "0xf205d0a2ae61551dafb4c8b459883c5ad295948069f23d97d9e2e5a21f02ab7b",
-      [],
+      "0x",
     );
 
     receive_tx = await contractWithSigner.receiveMessageWithProof(
@@ -194,7 +196,7 @@ describe("Bridge", function () {
       receiverAddress,
       100,
       2,
-      [],
+      "0x",
       Buffer.from(
         "00000000000000000000000000000000000000000000000000000000000000003e13975f9e4165cf4119f2f82528f20d0ba7d1ab18cf62b0e07a625fdcb600ba",
         "hex",
@@ -214,6 +216,6 @@ describe("Bridge", function () {
     expect(events[0].args.successfulCall).to.equal(true);
 
     new_balance = await hre.ethers.provider.getBalance(receiverAddress);
-    expect(new_balance.sub(origin_balance)).to.be.eql(BigNumber.from(300));
+    expect(new_balance - origin_balance).to.be.eql(300n);
   });
 });

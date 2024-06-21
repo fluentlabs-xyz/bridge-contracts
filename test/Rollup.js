@@ -9,10 +9,7 @@ describe("Rollup", function () {
 
   it("Calculate merkle root", async function () {
     let tx = await rollup.calculateMerkleRoot(
-      Buffer.from(
-        "1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
-        "hex",
-      ),
+        "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
     );
 
     expect(tx).to.eq(
@@ -20,10 +17,7 @@ describe("Rollup", function () {
     );
 
     tx = await rollup.calculateMerkleRoot(
-      Buffer.from(
-        "1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac753e13975f9e4165cf4119f2f82528f20d0ba7d1ab18cf62b0e07a625fdcb600ba",
-        "hex",
-      ),
+        "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac753e13975f9e4165cf4119f2f82528f20d0ba7d1ab18cf62b0e07a625fdcb600ba",
     );
 
     expect(tx).to.eq(
@@ -31,10 +25,7 @@ describe("Rollup", function () {
     );
 
     tx = await rollup.calculateMerkleRoot(
-      Buffer.from(
-        "1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac753e13975f9e4165cf4119f2f82528f20d0ba7d1ab18cf62b0e07a625fdcb600ba6bb3a22ed7bf22ee8607e5c6afad2b02dde06fe81be5723452da97b74b162c87",
-        "hex",
-      ),
+        "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac753e13975f9e4165cf4119f2f82528f20d0ba7d1ab18cf62b0e07a625fdcb600ba6bb3a22ed7bf22ee8607e5c6afad2b02dde06fe81be5723452da97b74b162c87",
     );
 
     expect(tx).to.eq(
@@ -49,7 +40,7 @@ describe("Rollup", function () {
     await rollupContractWithSigner.acceptNextProof(
       1,
       "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
-      [],
+      "0x",
       // Buffer.from("308e8f517a141f7661301a6f3c8a29ad2736bda89bf06403ead102d2075c2981", "hex")
       // [0x9b, 0x00, 0x34, 0x2a, 0x7f, 0xac, 0x9c, 0x0c, 0xc3, 0x3b, 0x36, 0x1c, 0xbb, 0x98, 0x43, 0x80, 0x33, 0x53, 0x77, 0x18, 0x1b, 0x94, 0x26, 0x47, 0xf4, 0x70, 0x58, 0xbc, 0x95, 0x12, 0x3d, 0x43]
     );

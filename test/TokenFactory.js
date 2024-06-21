@@ -8,12 +8,12 @@ describe("TokenFactory", function () {
   before(async function () {
     const Token = await ethers.getContractFactory("ERC20PeggedToken");
     let token = await Token.deploy(); // Adjust initial supply as needed
-    await token.deployed();
+    token = await token.waitForDeployment();
 
     const TokenFactoryContract =
       await ethers.getContractFactory("ERC20TokenFactory");
-    tokenFactory = await TokenFactoryContract.deploy(token.address);
-    await tokenFactory.deployed();
+    tokenFactory = await TokenFactoryContract.deploy(token.target);
+    tokenFactory = await tokenFactory.waitForDeployment();
   });
 
   it("computePeggedTokenAddress", async function () {
@@ -25,7 +25,7 @@ describe("TokenFactory", function () {
       "0x2222222222222222222222222222222222222222",
     );
 
-    expect(computeAddress).equal("0x37aEd0485afCf86083c8B4dEa6f4Fee734e80594");
+    expect(computeAddress).equal("0xB95bBDb7af84109E5e6956443471766F355754AE");
   });
 
   it("deployPeggedToken", async function () {
@@ -56,7 +56,7 @@ describe("TokenFactory", function () {
     let tokenContract = new ethers.Contract(
       peggedAddress,
       tokenAbi,
-      ethers.provider.getSigner(),
+      await ethers.provider.getSigner(),
     );
 
     let initTx = await tokenContract.initialize(

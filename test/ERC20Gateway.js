@@ -1,5 +1,5 @@
 const { expect } = require("chai");
-const { BigNumber } = require("ethers");
+const { AbiCoder, BigNumber } = require("ethers");
 const { address } = require("hardhat/internal/core/config/config-validation");
 
 describe("Bridge", function () {
@@ -12,7 +12,7 @@ describe("Bridge", function () {
   before(async function () {
     const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
     let peggedToken = await PeggedToken.deploy(); // Adjust initial supply as needed
-    await peggedToken.deployed();
+    peggedToken = await peggedToken.waitForDeployment();
 
     const BridgeContract = await ethers.getContractFactory("Bridge");
     const accounts = await hre.ethers.getSigners();
@@ -20,51 +20,51 @@ describe("Bridge", function () {
       accounts[0].address,
       accounts[1].address,
     );
-    await bridge.deployed();
+    bridge = await bridge.waitForDeployment();
 
     const TokenFactoryContract =
       await ethers.getContractFactory("ERC20TokenFactory");
-    tokenFactory = await TokenFactoryContract.deploy(peggedToken.address);
-    await tokenFactory.deployed();
+    tokenFactory = await TokenFactoryContract.deploy(peggedToken.target);
+    tokenFactory = await tokenFactory.waitForDeployment();
 
     const ERC20GatewayContract =
       await ethers.getContractFactory("ERC20Gateway");
     erc20GatewayAbi = ERC20GatewayContract.interface.format();
     erc20Gateway = await ERC20GatewayContract.deploy(
-      bridge.address,
-      tokenFactory.address,
+      bridge.target,
+      tokenFactory.target,
       {
-        value: ethers.utils.parseEther("1000"),
+        value: ethers.parseEther("1000"),
       },
     );
 
-    const authTx = await tokenFactory.transferOwnership(erc20Gateway.address);
+    const authTx = await tokenFactory.transferOwnership(erc20Gateway.target);
     await authTx.wait();
 
     const Token = await ethers.getContractFactory("MockERC20Token");
     token = await Token.deploy(
       "Mock Token",
       "TKN",
-      ethers.utils.parseEther("1000000"),
+      ethers.parseEther("1000000"),
       accounts[0].address,
     ); // Adjust initial supply as needed
-    await token.deployed();
+    token = await token.waitForDeployment();
 
-    await erc20Gateway.deployed();
+    erc20Gateway = await erc20Gateway.waitForDeployment();
   });
 
   it("Send tokens test", async function () {
     const accounts = await hre.ethers.getSigners();
     const tokenWithSigner = token.connect(accounts[0]);
-    const approve_tx = await tokenWithSigner.approve(erc20Gateway.address, 100);
+    const approve_tx = await tokenWithSigner.approve(erc20Gateway.target, 100);
     await approve_tx.wait();
 
     const contractWithSigner = erc20Gateway.connect(accounts[0]);
     const origin_balance = await token.balanceOf(accounts[0].address);
-    const origin_bridge_balance = await token.balanceOf(erc20Gateway.address);
+    const origin_bridge_balance = await token.balanceOf(erc20Gateway.target);
 
     const send_tx = await contractWithSigner.sendTokens(
-      token.address,
+      token.target,
       accounts[3].address,
       100,
     );
@@ -75,15 +75,15 @@ describe("Bridge", function () {
 
     expect(events.length).to.equal(1);
 
-    expect(events[0].args.sender).to.equal(erc20Gateway.address);
+    expect(events[0].args.sender).to.equal(erc20Gateway.target);
 
     const balance = await token.balanceOf(accounts[0].address);
-    const bridge_balance = await token.balanceOf(erc20Gateway.address);
+    const bridge_balance = await token.balanceOf(erc20Gateway.target);
 
-    expect(bridge_balance.sub(origin_bridge_balance)).to.be.eql(
-      BigNumber.from(100),
+    expect(bridge_balance - origin_bridge_balance).to.be.eql(
+      100n,
     );
-    expect(origin_balance.sub(balance)).to.be.eql(BigNumber.from(100));
+    expect(origin_balance - balance).to.be.eql(100n);
   });
 
   it("Receive tokens test", async function () {
@@ -95,19 +95,19 @@ describe("Bridge", function () {
     const origin_balance =
       await hre.ethers.provider.getBalance(receiverAddress);
 
-    const gatewayInterface = new ethers.utils.Interface(erc20GatewayAbi);
-    const _token = token.address;
+    const gatewayInterface = new ethers.Interface(erc20GatewayAbi);
+    const _token = token.target;
     const _to = accounts[3].address;
     const _from = accounts[0].address;
     const _amount = 100;
 
-    const functionSelector = gatewayInterface.getSighash(
-      "receivePeggedTokens(address,address,address,address,uint256,bytes)",
-    );
+    const functionSelector = gatewayInterface.getFunction(
+      "receivePeggedTokens",
+    ).selector;
 
     const peggedTokenAddress = await tokenFactory.computePeggedTokenAddress(
-      erc20Gateway.address,
-      token.address,
+      erc20Gateway.target,
+      token.target,
     );
 
     const tokenMetadata = {
@@ -116,16 +116,16 @@ describe("Bridge", function () {
       decimals: 18,
     };
 
-    const encodedTokenMetadata = ethers.utils.defaultAbiCoder.encode(
+    const encodedTokenMetadata = AbiCoder.defaultAbiCoder().encode(
       ["string", "string", "uint8"],
       [tokenMetadata.symbol, tokenMetadata.name, tokenMetadata.decimals],
     );
 
     const _message =
       functionSelector +
-      ethers.utils.defaultAbiCoder
+        AbiCoder.defaultAbiCoder()
         .encode(
-          ["address", "address", "address", "address", "uint256", "bytes"],
+            ["address", "address", "address", "address", "uint256", "bytes"],
           [
             _token,
             peggedTokenAddress,
@@ -137,23 +137,23 @@ describe("Bridge", function () {
         )
         .slice(2);
 
-    const data = hre.ethers.utils.defaultAbiCoder
+    const data = AbiCoder.defaultAbiCoder()
       .encode(
         ["address", "address", "uint256", "uint256", "bytes"],
-        [erc20Gateway.address, accounts[3].address, 0, 0, _message],
+        [erc20Gateway.target, accounts[3].address, 0, 0, _message],
       )
       .slice(2);
 
     const inputBytes = Buffer.from(data, "hex");
-    const hash = ethers.utils.keccak256(inputBytes);
+    const hash = ethers.keccak256(inputBytes);
 
     expect(hash).to.equal(
-      "0x7507ff1d7b2bf735f2a1a6fad46edd6e3d2048524a098fcaca8afb9f67b6b802",
+      "0xece47fe60704fad6f857c8f1aaa2ff9dec7d886b6171252458f06bf5ee7ea699",
     );
 
     const receive_tx = await contractWithSigner.receiveMessage(
       "0x1111111111111111111111111111111111111111",
-      erc20Gateway.address,
+      erc20Gateway.target,
       0,
       0,
       _message,
@@ -174,12 +174,12 @@ describe("Bridge", function () {
 
     expect(events.length).to.equal(1);
     expect(events[0].args.messageHash).to.equal(
-      "0xb2877f7f0912452bde2efbd451cb4146f105de323c9a70963d8c878f842a76e3",
+      "0x6451ff2a61f674a843f3db146d0fe0e8f0b5ba4c8288dd23c32d1e4dcc83d812",
     );
     expect(events[0].args.successfulCall).to.equal(true);
 
     const new_balance = await hre.ethers.provider.getBalance(receiverAddress);
-    expect(new_balance.sub(origin_balance)).to.be.eql(BigNumber.from(0));
+    expect(new_balance - origin_balance).to.be.eql(0n);
 
     const tokenArtifact = await artifacts.readArtifact("ERC20PeggedToken");
     const tokenAbi = tokenArtifact.abi;
@@ -187,20 +187,20 @@ describe("Bridge", function () {
     let peggedTokenContract = new ethers.Contract(
       peggedTokenAddress,
       tokenAbi,
-      ethers.provider.getSigner(),
+      await ethers.provider.getSigner(),
     );
 
     const balance = await peggedTokenContract.balanceOf(receiverAddress);
 
-    expect(balance).to.be.eql(BigNumber.from(100));
+    expect(balance).to.be.eql(100n);
 
     try {
       const repeat_receive_tx = await contractWithSigner.receiveMessage(
         "0x1111111111111111111111111111111111111111",
-        erc20Gateway.address,
+        erc20Gateway.target,
         0,
         0,
-        [],
+        "0x",
       );
 
       await repeat_receive_tx.wait();

@@ -1,5 +1,5 @@
 const { expect } = require("chai");
-const { BigNumber } = require("ethers");
+const { BigNumber, AbiCoder} = require("ethers");
 
 describe("RestakerGateway", function () {
   let bridge;
@@ -13,7 +13,7 @@ describe("RestakerGateway", function () {
   before(async function () {
     const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
     let peggedToken = await PeggedToken.deploy(); // Adjust initial supply as needed
-    await peggedToken.deployed();
+    peggedToken = await peggedToken.waitForDeployment();
 
     const BridgeContract = await ethers.getContractFactory("Bridge");
     const accounts = await hre.ethers.getSigners();
@@ -21,52 +21,52 @@ describe("RestakerGateway", function () {
       accounts[0].address,
       accounts[1].address,
     );
-    await bridge.deployed();
+    bridge = await bridge.waitForDeployment();
 
     const TokenFactoryContract =
       await ethers.getContractFactory("ERC20TokenFactory");
-    tokenFactory = await TokenFactoryContract.deploy(peggedToken.address);
-    await tokenFactory.deployed();
+    tokenFactory = await TokenFactoryContract.deploy(peggedToken.target);
+    tokenFactory = await tokenFactory.waitForDeployment();
 
     const Token = await ethers.getContractFactory("MockERC20Token");
     token = await Token.deploy(
       "Mock Token",
       "TKN",
-      ethers.utils.parseEther("1000000"),
+      ethers.parseEther("1000000"),
       accounts[0].address,
     );
-    await token.deployed();
+    token = await token.waitForDeployment();
 
     const MockLiquidityToken =
       await ethers.getContractFactory("MockLiquidityToken");
     mockLiquidityToken = await MockLiquidityToken.deploy(
       "Liquidity Token",
       "LQT",
-      ethers.utils.parseEther("1000000"),
+      ethers.parseEther("1000000"),
       accounts[0].address,
     );
-    await mockLiquidityToken.deployed();
+    mockLiquidityToken = await mockLiquidityToken.waitForDeployment();
 
     const MockRestaker = await ethers.getContractFactory("MockRestaker");
-    mockRestaker = await MockRestaker.deploy(mockLiquidityToken.address);
-    await mockRestaker.deployed();
+    mockRestaker = await MockRestaker.deploy(mockLiquidityToken.target);
+    mockRestaker = await mockRestaker.waitForDeployment();
 
     let tokenWithSigner = mockLiquidityToken.connect(accounts[0]);
 
-    let tx = await tokenWithSigner.setRestaker(mockRestaker.address);
+    let tx = await tokenWithSigner.setRestaker(mockRestaker.target);
     await tx.wait();
 
     const RestakerGateway = await ethers.getContractFactory("RestakerGateway");
     restakingGatewayAbi = RestakerGateway.interface.format();
     restakerGateway = await RestakerGateway.deploy(
-      bridge.address,
-      mockRestaker.address,
-      tokenFactory.address,
+      bridge.target,
+      mockRestaker.target,
+      tokenFactory.target,
     );
-    await restakerGateway.deployed();
+    restakerGateway = await restakerGateway.waitForDeployment();
 
     const authTx = await tokenFactory.transferOwnership(
-      restakerGateway.address,
+      restakerGateway.target,
     );
     await authTx.wait();
   });
@@ -78,7 +78,7 @@ describe("RestakerGateway", function () {
       accounts[0].address,
     );
     const origin_balance = await mockLiquidityToken.balanceOf(
-      restakerGateway.address,
+      restakerGateway.target,
     );
 
     const contractWithSigner = restakerGateway.connect(accounts[0]);
@@ -90,27 +90,27 @@ describe("RestakerGateway", function () {
 
     let receipt = await send_tx.wait();
 
-    let gasUsed = receipt.cumulativeGasUsed * receipt.effectiveGasPrice;
+    let gasUsed = receipt.cumulativeGasUsed * receipt.gasPrice;
 
     const events = await bridge.queryFilter("SentMessage", send_tx.blockNumber);
 
     expect(events.length).to.equal(1);
 
-    expect(events[0].args.sender).to.equal(restakerGateway.address);
+    expect(events[0].args.sender).to.equal(restakerGateway.target);
 
     const account_balance = await hre.ethers.provider.getBalance(
       accounts[0].address,
     );
 
-    expect(origin_account_balance.sub(account_balance).sub(gasUsed)).to.be.eql(
-      BigNumber.from(1000),
+    expect(origin_account_balance - account_balance - gasUsed).to.be.eql(
+      1000n,
     );
 
     const token_balance = await mockLiquidityToken.balanceOf(
-      restakerGateway.address,
+      restakerGateway.target,
     );
 
-    expect(token_balance.sub(origin_balance)).to.be.eql(BigNumber.from(1000));
+    expect(token_balance -  origin_balance).to.be.eql(1000n);
   });
 
   it("Unstake tokens test", async function () {
@@ -119,19 +119,19 @@ describe("RestakerGateway", function () {
 
     const receiverAddress = await accounts[0].getAddress();
 
-    const gatewayInterface = new ethers.utils.Interface(restakingGatewayAbi);
-    const _token = mockLiquidityToken.address;
+    const gatewayInterface = new ethers.Interface(restakingGatewayAbi);
+    const _token = mockLiquidityToken.target;
     const _to = accounts[0].address;
     const _from = accounts[3].address;
     const _amount = 1000;
 
-    const functionSelector = gatewayInterface.getSighash(
-      "receivePeggedTokens(address,address,address,address,uint256,bytes)",
-    );
+    const functionSelector = gatewayInterface.getFunction(
+      "receivePeggedTokens",
+    ).selector;
 
     const peggedTokenAddress = await tokenFactory.computePeggedTokenAddress(
-      restakerGateway.address,
-      mockLiquidityToken.address,
+      restakerGateway.target,
+      mockLiquidityToken.target,
     );
 
     const tokenMetadata = {
@@ -140,14 +140,14 @@ describe("RestakerGateway", function () {
       decimals: 18,
     };
 
-    const encodedTokenMetadata = ethers.utils.defaultAbiCoder.encode(
+    const encodedTokenMetadata = AbiCoder.defaultAbiCoder().encode(
       ["string", "string", "uint8"],
       [tokenMetadata.symbol, tokenMetadata.name, tokenMetadata.decimals],
     );
 
     const _message =
       functionSelector +
-      ethers.utils.defaultAbiCoder
+        AbiCoder.defaultAbiCoder()
         .encode(
           ["address", "address", "address", "address", "uint256", "bytes"],
           [
@@ -161,15 +161,15 @@ describe("RestakerGateway", function () {
         )
         .slice(2);
 
-    const data = hre.ethers.utils.defaultAbiCoder
+    const data = AbiCoder.defaultAbiCoder()
       .encode(
         ["address", "address", "uint256", "uint256", "bytes"],
-        [restakerGateway.address, accounts[3].address, 0, 0, _message],
+        [restakerGateway.target, accounts[3].address, 0, 0, _message],
       )
       .slice(2);
 
     const inputBytes = Buffer.from(data, "hex");
-    const hash = ethers.utils.keccak256(inputBytes);
+    const hash = ethers.keccak256(inputBytes);
 
     expect(hash).to.equal(
       "0xd0330375c6a7ea9ccd0085294287f20d60982f8e2d18c61eca5015c0e67a88e5",
@@ -177,7 +177,7 @@ describe("RestakerGateway", function () {
 
     const receive_tx = await contractWithSigner.receiveMessage(
       "0x1111111111111111111111111111111111111111",
-      restakerGateway.address,
+      restakerGateway.target,
       0,
       0,
       _message,
@@ -190,7 +190,7 @@ describe("RestakerGateway", function () {
     let peggedTokenContract = new ethers.Contract(
       peggedTokenAddress,
       tokenAbi,
-      ethers.provider.getSigner(),
+      await ethers.provider.getSigner(),
     );
 
     const origin_balance = await peggedTokenContract.balanceOf(receiverAddress);
@@ -211,7 +211,7 @@ describe("RestakerGateway", function () {
     const restakerWithSigner = restakerGateway.connect(accounts[0]);
 
     let setTokenTx = await restakerWithSigner.setLiquidityToken(
-      mockLiquidityToken.address,
+      mockLiquidityToken.target,
     );
 
     await setTokenTx.wait();
@@ -227,10 +227,10 @@ describe("RestakerGateway", function () {
 
     expect(events.length).to.equal(1);
 
-    expect(events[0].args.sender).to.equal(restakerGateway.address);
+    expect(events[0].args.sender).to.equal(restakerGateway.target);
 
     const token_balance = await peggedTokenContract.balanceOf(receiverAddress);
-    expect(origin_balance.sub(token_balance)).to.be.eql(BigNumber.from(100));
+    expect(origin_balance - token_balance).to.be.eql(100n);
   });
 
   it("Receive tokens test", async function () {
@@ -238,33 +238,33 @@ describe("RestakerGateway", function () {
     const contractWithSigner = bridge.connect(accounts[0]);
 
     const balance_before = await mockLiquidityToken.balanceOf(
-      restakerGateway.address,
+      restakerGateway.target,
     );
 
-    const gatewayInterface = new ethers.utils.Interface(restakingGatewayAbi);
+    const gatewayInterface = new ethers.Interface(restakingGatewayAbi);
     const _to = accounts[3].address;
     const _from = accounts[0].address;
     const _amount = 100;
 
-    const functionSelector = gatewayInterface.getSighash(
-      "receiveUnstakingTokens(address,address,uint256)",
-    );
+    const functionSelector = gatewayInterface.getFunction(
+      "receiveUnstakingTokens",
+    ).selector;
 
     const _message =
       functionSelector +
-      ethers.utils.defaultAbiCoder
+      AbiCoder.defaultAbiCoder()
         .encode(["address", "address", "uint256"], [_from, _to, _amount])
         .slice(2);
 
-    const data = hre.ethers.utils.defaultAbiCoder
+    const data = AbiCoder.defaultAbiCoder()
       .encode(
         ["address", "address", "uint256", "uint256", "bytes"],
-        [restakerGateway.address, accounts[3].address, 0, 0, _message],
+        [restakerGateway.target, accounts[3].address, 0, 0, _message],
       )
       .slice(2);
 
     const inputBytes = Buffer.from(data, "hex");
-    const hash = ethers.utils.keccak256(inputBytes);
+    const hash = ethers.keccak256(inputBytes);
 
     expect(hash).to.equal(
       "0xc01c06cce741e56315d428806aa809561eac38bc4c8e96deb2d0662578f6dc0d",
@@ -272,7 +272,7 @@ describe("RestakerGateway", function () {
 
     const receive_tx = await contractWithSigner.receiveMessage(
       "0x1111111111111111111111111111111111111111",
-      restakerGateway.address,
+      restakerGateway.target,
       0,
       0,
       _message,
@@ -297,8 +297,8 @@ describe("RestakerGateway", function () {
     );
     expect(events[0].args.successfulCall).to.equal(true);
 
-    const balance = await mockLiquidityToken.balanceOf(restakerGateway.address);
+    const balance = await mockLiquidityToken.balanceOf(restakerGateway.target);
 
-    expect(balance_before.sub(balance)).to.be.eql(BigNumber.from(100));
+    expect(balance_before - balance).to.be.eql(100n);
   });
 });
