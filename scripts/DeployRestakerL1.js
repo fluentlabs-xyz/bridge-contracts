@@ -1,63 +1,62 @@
 const { ethers } = require("hardhat");
-const {BigNumber} = require("ethers");
+const { BigNumber } = require("ethers");
 
-const RESTAKER_PROVIDER = "RESTAKER_PROVIDER"
+const RESTAKER_PROVIDER = "RESTAKER_PROVIDER";
 
 async function main() {
-  let provider_url =
-      "https://ethereum-holesky-rpc.publicnode.com";
+  let provider_url = "https://ethereum-holesky-rpc.publicnode.com";
   // let provider_url = "http://127.0.0.1:8545/";
 
   const privateKey = process.env.PRIVATE_KEY;
-  let provider = new ethers.providers.JsonRpcProvider(provider_url);
+  let provider = new ethers.JsonRpcProvider(provider_url);
 
   let signer = new ethers.Wallet(privateKey, provider);
   // signer = provider.getSigner()
 
-  await deployRestakerL1(provider, signer, "0x5D53ec5B0eB1dCBaAe425A0c5ae79354467cd6fA");
+  await deployRestakerL1(
+    provider,
+    signer,
+    "0x5D53ec5B0eB1dCBaAe425A0c5ae79354467cd6fA",
+  );
 }
 
 async function deployRestakerL1(provider, signer, bridgeAddress) {
+  let awaiting = [];
 
-  let awaiting = []
+  let nonce = await provider.getTransactionCount(signer.address, "pending");
 
-  let nonce = await signer.getTransactionCount("pending")
-
-  console.log("Pending nonce: ", nonce)
+  console.log("Pending nonce: ", nonce);
   const ProtocolConfig = await ethers.getContractFactory("ProtocolConfig");
   // let protocolConfig = await ProtocolConfig.connect(l1Signer).attach("0xd3f649a83c4d078c533a06188f6f17661b7639d9");
   let protocolConfig = await ProtocolConfig.connect(signer).deploy(
-      signer.getAddress(),
-      signer.getAddress(),
-      signer.getAddress(),
-      {
-        nonce: nonce++
-      }
+    signer.getAddress(),
+    signer.getAddress(),
+    signer.getAddress(),
+    {
+      nonce: nonce++,
+    },
   );
-  awaiting.push(protocolConfig.deployed());
+  awaiting.push(protocolConfig.waitForDeployment());
 
-  console.log("Protocol config: ", protocolConfig.address);
+  console.log("Protocol config: ", protocolConfig.target);
 
-  console.log("Pending nonce: ", nonce)
+  console.log("Pending nonce: ", nonce);
   const RatioFeed = await ethers.getContractFactory("RatioFeed");
   // let ratioFeed = await RatioFeed.connect(l1Signer).attach("0xd15ba44ce9e19509073bd35476a11f8902ae1f8b")
-  let ratioFeed = await RatioFeed.connect(signer)
-      .deploy(
-      protocolConfig.address,
-      "40000",
-  {
-    nonce: nonce++
-  }
+  let ratioFeed = await RatioFeed.connect(signer).deploy(
+    protocolConfig.target,
+    "40000",
+    {
+      nonce: nonce++,
+    },
   );
-  console.log("Pending nonce: ", nonce)
-  awaiting.push(ratioFeed.deployed());
-  console.log("Ratio feed: ", ratioFeed.address);
+  console.log("Pending nonce: ", nonce);
+  awaiting.push(ratioFeed.waitForDeployment());
+  console.log("Ratio feed: ", ratioFeed.target);
 
-
-  let setRatioFeed = await protocolConfig.setRatioFeed(ratioFeed.address,
-      {
-        nonce: nonce++
-      });
+  let setRatioFeed = await protocolConfig.setRatioFeed(ratioFeed.target, {
+    nonce: nonce++,
+  });
   console.log("Set ratio feet");
   awaiting.push(setRatioFeed.wait());
 
@@ -66,102 +65,93 @@ async function deployRestakerL1(provider, signer, bridgeAddress) {
   const LiquidityToken = await ethers.getContractFactory("LiquidityToken");
   // let liquidityToken = await LiquidityToken.connect(l1Signer).attach("0x8817e50f7af3415cf1402cbc6bf46206dd80b52d");
   let liquidityToken = await LiquidityToken.connect(signer).deploy(
-      protocolConfig.address,
-      'Liquidity Token',
-      'lETH',
-      {
-    nonce: nonce++
-  }
+    protocolConfig.target,
+    "Liquidity Token",
+    "lETH",
+    {
+      nonce: nonce++,
+    },
   );
-  awaiting.push(liquidityToken.deployed());
+  awaiting.push(liquidityToken.waitForDeployment());
 
-  console.log("LiquidutyToken: ", liquidityToken.address)
+  console.log("LiquidutyToken: ", liquidityToken.target);
 
-
-
-  let updateRatio = await ratioFeed.updateRatio(liquidityToken.address, 1000,
-      {
-        nonce: nonce++
-      });
+  let updateRatio = await ratioFeed.updateRatio(liquidityToken.target, 1000, {
+    nonce: nonce++,
+  });
   awaiting.push(updateRatio.wait());
 
-  console.log("updateRation: ", updateRatio.address)
+  console.log("updateRation: ", updateRatio.target);
 
-  let setToken = await protocolConfig.setLiquidityToken(liquidityToken.address,
-      {
-        nonce: nonce++
-      })
+  let setToken = await protocolConfig.setLiquidityToken(
+    liquidityToken.target,
+    {
+      nonce: nonce++,
+    },
+  );
   awaiting.push(setToken.wait());
 
-  console.log("setToken: ", setToken.address)
+  console.log("setToken: ", setToken.target);
 
   const RestakingPool = await ethers.getContractFactory("RestakingPool");
   // let restakingPool = await RestakingPool.connect(l1Signer).attach("0xfae844C4deb40A72015e7A198C7B87C8B3d06b2A");
   let restakingPool = await RestakingPool.connect(signer).deploy(
-      protocolConfig.address,
-      '200000',
-      '200000000000000000000',
-      {
-        nonce: nonce++
-      },
+    protocolConfig.target,
+    "200000",
+    "200000000000000000000",
+    {
+      nonce: nonce++,
+    },
   );
-  awaiting.push(restakingPool.deployed());
-  console.log("Restaking pool: ", restakingPool.address)
+  awaiting.push(restakingPool.waitForDeployment());
+  console.log("Restaking pool: ", restakingPool.target);
 
-
-  let setPool= await protocolConfig.setRestakingPool(restakingPool.address,
-      {
-        nonce: nonce++
-      })
+  let setPool = await protocolConfig.setRestakingPool(restakingPool.target, {
+    nonce: nonce++,
+  });
   awaiting.push(setPool.wait());
   console.log("settedPool");
 
-
   const FeeCollector = await ethers.getContractFactory("FeeCollector");
   let feeCollector = await FeeCollector.connect(signer).deploy(
-      protocolConfig.address,
-      '1500',
-      {
-        nonce: nonce++
-      },
+    protocolConfig.target,
+    "1500",
+    {
+      nonce: nonce++,
+    },
   );
-  awaiting.push(feeCollector.deployed());
-  console.log("FeeCollector: ", feeCollector.address);
-
+  awaiting.push(feeCollector.waitForDeployment());
+  console.log("FeeCollector: ", feeCollector.target);
 
   const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
-  let peggedToken = await PeggedToken.connect(signer).deploy(
-      {
-        nonce: nonce++
-      });
-  awaiting.push(peggedToken.deployed());
-  console.log("ERC20PeggedToken: ", peggedToken.address);
-
+  let peggedToken = await PeggedToken.connect(signer).deploy({
+    nonce: nonce++,
+  });
+  awaiting.push(peggedToken.waitForDeployment());
+  console.log("ERC20PeggedToken: ", peggedToken.target);
 
   const TokenFactoryContract =
-      await ethers.getContractFactory("ERC20TokenFactory");
+    await ethers.getContractFactory("ERC20TokenFactory");
   let tokenFactory = await TokenFactoryContract.connect(signer).deploy(
-      peggedToken.address,
-      {
-        nonce: nonce++
-      },
+    peggedToken.target,
+    {
+      nonce: nonce++,
+    },
   );
-  awaiting.push(tokenFactory.deployed());
-  console.log("ERC20TokenFactory: ", tokenFactory.address);
-
+  awaiting.push(tokenFactory.waitForDeployment());
+  console.log("ERC20TokenFactory: ", tokenFactory.target);
 
   const RestakerGateway = await ethers.getContractFactory("RestakerGateway");
   let restakerGateway = await RestakerGateway.connect(signer).deploy(
-      bridgeAddress,
-      restakingPool.address,
-      tokenFactory.address,
-      {
-        nonce: nonce++
-      },
+    bridgeAddress,
+    restakingPool.target,
+    tokenFactory.target,
+    {
+      nonce: nonce++,
+    },
   );
-  awaiting.push(restakerGateway.deployed());
-  console.log("REstaking gateway, ", restakerGateway.address)
-
+  awaiting.push(restakerGateway.waitForDeployment());
+  console.log("REstaking gateway, ", restakerGateway.target);
 
   // const EigenPodMock    = await ethers.getContractFactory("EigenPodMock");
   // let eigenPodMock = await EigenPodMock.connect(l1Signer).deploy(
@@ -170,128 +160,123 @@ async function deployRestakerL1(provider, signer, bridgeAddress) {
   //     "0x0000000000000000000000000000000000000000",
   //     0
   // )
-  // awaiting.push(eigenPodMock.deployed());
-  // console.log("EigenPodMock: ", eigenPodMock.address);
+  // awaiting.push(eigenPodMock.waitForDeployment());
+  // console.log("EigenPodMock: ", eigenPodMock.target);
 
-  const UpgradeableBeacon = await ethers.getContractFactory('UpgradeableBeacon');
+  const UpgradeableBeacon =
+    await ethers.getContractFactory("UpgradeableBeacon");
   // let upgradeableBeacon = await UpgradeableBeacon.connect(l1Signer).deploy(
-  //     eigenPodMock.address,
+  //     eigenPodMock.target,
   //     await l1Signer.getAddress(), {
   //       gasLimit: 300000,
   //     }
   // );
-  // awaiting.push(upgradeableBeacon.deployed());
-  // console.log("UpgradeableBeacon: ", upgradeableBeacon.address);
+  // awaiting.push(upgradeableBeacon.waitForDeployment());
+  // console.log("UpgradeableBeacon: ", upgradeableBeacon.target);
 
   // const EigenPodManagerMock    = await ethers.getContractFactory("EigenPodManagerMock");
   // let eigenPodManagerMock = await EigenPodManagerMock.connect(l1Signer).deploy(
   //     "0x0000000000000000000000000000000000000000",
-  //     upgradeableBeacon.address,
+  //     upgradeableBeacon.target,
   //     "0x0000000000000000000000000000000000000000",
   //     "0x0000000000000000000000000000000000000000",
   // )
-  // awaiting.push(eigenPodManagerMock.deployed());
-  // console.log("EigenPodManagerMock: ", eigenPodManagerMock.address);
+  // awaiting.push(eigenPodManagerMock.waitForDeployment());
+  // console.log("EigenPodManagerMock: ", eigenPodManagerMock.target);
 
   // const DelegationManagerMock    = await ethers.getContractFactory("DelegationManagerMock");
   // let delegationManagerMock = await DelegationManagerMock.connect(l1Signer).deploy()
-  // awaiting.push(delegationManagerMock.deployed());
-  // console.log("DelegationManagerMock: ", delegationManagerMock.address);
+  // awaiting.push(delegationManagerMock.waitForDeployment());
+  // console.log("DelegationManagerMock: ", delegationManagerMock.target);
 
-  const RestakerFacets    = await ethers.getContractFactory("RestakerFacets");
+  const RestakerFacets = await ethers.getContractFactory("RestakerFacets");
   let restakerFacets = await RestakerFacets.connect(signer).deploy(
-      signer.getAddress(),
-      // eigenPodManagerMock.address,
-      "0x30770d7E3e71112d7A6b7259542D1f680a70e315",
-      // delegationManagerMock.address,
+    signer.getAddress(),
+    // eigenPodManagerMock.target,
+    "0x30770d7E3e71112d7A6b7259542D1f680a70e315",
+    // delegationManagerMock.target,
     "0xdfB5f6CE42aAA7830E94ECFCcAd411beF4d4D5b6",
-      {
-        nonce: nonce++
-      },
+    {
+      nonce: nonce++,
+    },
   );
-  awaiting.push(restakerFacets.deployed());
-  console.log("RestakerFacets: ", restakerFacets.address);
+  awaiting.push(restakerFacets.waitForDeployment());
+  console.log("RestakerFacets: ", restakerFacets.target);
 
+  const Restaker = await ethers.getContractFactory("Restaker");
+  let restaker = await Restaker.connect(signer).deploy({
+    nonce: nonce++,
+  });
+  awaiting.push(restaker.waitForDeployment());
 
-  const Restaker = await ethers.getContractFactory('Restaker');
-  let restaker = await Restaker.connect(signer).deploy(
-      {
-        nonce: nonce++
-      });
-  awaiting.push(restaker.deployed());
-
-  console.log("Restaker: ", restaker.address);
-
-
+  console.log("Restaker: ", restaker.target);
 
   let upgradeableBeacon = await UpgradeableBeacon.connect(signer).deploy(
-      restaker.address,
-      await signer.getAddress(), {
-        gasLimit: 300000,
-        nonce: nonce++
-      }
+    restaker.target,
+    await signer.getAddress(),
+    {
+      gasLimit: 300000,
+      nonce: nonce++,
+    },
   );
-  awaiting.push(upgradeableBeacon.deployed());
+  awaiting.push(upgradeableBeacon.waitForDeployment());
 
-  console.log("UpgradeableBeacon: ", upgradeableBeacon.address);
-
+  console.log("UpgradeableBeacon: ", upgradeableBeacon.target);
 
   const RestakerDeployer = await ethers.getContractFactory("RestakerDeployer");
   let restakerDeployer = await RestakerDeployer.connect(signer).deploy(
-      upgradeableBeacon.address,
-      restakerFacets.address,
-      {
-        nonce: nonce++
-      },
+    upgradeableBeacon.target,
+    restakerFacets.target,
+    {
+      nonce: nonce++,
+    },
   );
-  awaiting.push(restakerDeployer.deployed());
+  awaiting.push(restakerDeployer.waitForDeployment());
 
-  console.log("RestakerDeployer: ", restakerDeployer.address);
+  console.log("RestakerDeployer: ", restakerDeployer.target);
 
-
-  let setDeployer = await protocolConfig.setRestakerDeployer(restakerDeployer.address,
-      {
-        nonce: nonce++
-      })
+  let setDeployer = await protocolConfig.setRestakerDeployer(
+    restakerDeployer.target,
+    {
+      nonce: nonce++,
+    },
+  );
   awaiting.push(setDeployer.wait());
-  console.log("setDeployer")
+  console.log("setDeployer");
 
-
-  const authTx = await tokenFactory.transferOwnership(restakerGateway.address, {
-    nonce: nonce++
+  const authTx = await tokenFactory.transferOwnership(restakerGateway.target, {
+    nonce: nonce++,
   });
   awaiting.push(authTx.wait());
 
-  console.log("authTx")
-
+  console.log("authTx");
 
   let addRestaker = await restakingPool.addRestaker(RESTAKER_PROVIDER, {
     gasLimit: 1000000,
-    nonce: nonce++
+    nonce: nonce++,
   });
   awaiting.push(addRestaker.wait());
-  console.log("addRestaker")
+  console.log("addRestaker");
 
+  await Promise.all(awaiting);
 
-  await Promise.all(awaiting)
-
-  console.log("Restaking Gateway contracts deployed")
+  console.log("Restaking Gateway contracts deployed");
   return {
-    restakerGateway: restakerGateway.address,
-    restakingPool: restakingPool.address,
-    liquidityToken: liquidityToken.address,
-    tokenFactory: tokenFactory.address,
-    peggedToken: peggedToken.address
-  }
+    restakerGateway: restakerGateway.target,
+    restakingPool: restakingPool.target,
+    liquidityToken: liquidityToken.target,
+    tokenFactory: tokenFactory.target,
+    peggedToken: peggedToken.target,
+  };
 }
 
 module.exports = deployRestakerL1;
 
 if (require.main === module) {
   main()
-      .then(() => process.exit(0))
-      .catch((error) => {
-        console.error(error);
-        process.exit(1);
-      });
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
 }

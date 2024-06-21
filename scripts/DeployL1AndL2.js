@@ -7,10 +7,10 @@ async function main() {
   // const l1Url= "http://127.0.0.1:8545/nonce"
   let l1Url =
     "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
-  let l1Provider = new ethers.providers.JsonRpcProvider(l1Url);
+  let l1Provider = new ethers.JsonRpcProvider(l1Url);
   // const l2Url= "http://127.0.0.1:8545/"
   const l2Url = "https://rpc.dev1.fluentlabs.xyz/";
-  let l2Provider = new ethers.providers.JsonRpcProvider(l2Url);
+  let l2Provider = new ethers.JsonRpcProvider(l2Url);
 
   const privateKey =
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
@@ -38,11 +38,11 @@ async function main() {
   let l1Token = await Token.connect(l1Signer).deploy(
     "Mock Token",
     "TKN",
-    ethers.utils.parseEther("1000000"),
+    ethers.parseEther("1000000"),
     await l1Signer.getAddress(),
   );
-  await l1Token.deployed();
-  console.log("l1token: ", l1Token.address);
+  l1Token = await l1Token.waitForDeployment();
+  console.log("l1token: ", l1Token.target);
 
   const ERC20GatewayContract = await ethers.getContractFactory("ERC20Gateway");
   let tx = await ERC20GatewayContract.connect(l1Signer)

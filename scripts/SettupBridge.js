@@ -9,11 +9,11 @@ async function main() {
   let providerUrlL2 = "https://rpc.dev1.fluentlabs.xyz/";
   const privateKey = process.env.PRIVATE_KEY;
 
-  let providerL1 = new ethers.providers.JsonRpcProvider(providerUrlL1);
+  let providerL1 = new ethers.JsonRpcProvider(providerUrlL1);
 
   const signerL1 = new ethers.Wallet(privateKey, providerL1);
 
-  let providerL2 = new ethers.providers.JsonRpcProvider(providerUrlL2);
+  let providerL2 = new ethers.JsonRpcProvider(providerUrlL2);
   const signerL2 = new ethers.Wallet(privateKey, providerL2);
   console.log("signer: ", await signerL1.getAddress());
 
@@ -32,8 +32,8 @@ async function main() {
     "0xf70f7cADD71591e96BD696716A4A2bA6286c82e8",
   );
 
-  console.log("Set bridge: ", bridge.address);
-  let nonce = await signerL1.getTransactionCount();
+  console.log("Set bridge: ", bridge.target);
+  let nonce = await providerL1.getTransactionCount(signerL1);
 
   console.log("Next transaction: ", nonce);
   let gasPrice = await providerL1.getGasPrice();
@@ -41,34 +41,34 @@ async function main() {
   console.log("Gas price: ", gasPrice * 2);
   gasPrice = gasPrice.add(gasPrice.div(10));
 
-  let noncePending = await signerL1.getTransactionCount("pending");
+  let noncePending = await providerL1.getTransactionCount(signerL1.address, "pending");
   console.log("Pending: ", noncePending);
 
-  let setBridge = await rollup.setBridge(bridge.address, {
+  let setBridge = await rollup.setBridge(bridge.target, {
     nonce,
     gasLimit: 100000,
-    maxPriorityFeePerGas: BigNumber.from(6142504941).mul(10).div(9),
+    maxPriorityFeePerGas: 6142504941n.mul(10).div(9),
   });
   console.log("Set bridge: ", setBridge);
   await setBridge.wait();
 
   const TokenFactoryContract =
     await ethers.getContractFactory("ERC20TokenFactory");
-  let tokenFactory = await TokenFactoryContract.connect(signer).attach(
+  let tokenFactory = await TokenFactoryContract.connect(signerL1).attach(
     "0x43E9dbA5b512774D6Baf41a2c64DD8e4dcff0970",
   );
 
   console.log("token factory owner: ", await tokenFactory.owner());
 
-  nonce = await signer.getTransactionCount();
+  nonce = await providerL1.getTransactionCount(signerL1);
 
   const authTx = await tokenFactory.transferOwnership(
     "0x43E9dbA5b512774D6Baf41a2c64DD8e4dcff0970",
     {
-      nonce: 11,
+      nonce,
       // gasLimit: 100000,
-      maxPriorityFeePerGas: BigNumber.from(7142504941).mul(3),
-      maxFeePerGas: BigNumber.from(12267313598).mul(3),
+      maxPriorityFeePerGas: 7142504941n.mul(3),
+      maxFeePerGas: 12267313598n.mul(3),
     },
   );
   console.log("Auth tx: ", authTx);
@@ -88,8 +88,8 @@ async function main() {
   //     l2Factory,
   //     {
   //         nonce: 28,
-  //         maxPriorityFeePerGas: BigNumber.from(7142504941).mul(3),
-  //         maxFeePerGas: BigNumber.from(12267313598).mul(3),
+  //         maxPriorityFeePerGas: 7142504941n.mul(3),
+  //         maxFeePerGas: 12267313598n.mul(3),
   //     }
   // );
   // console.log("TX: ", tx)

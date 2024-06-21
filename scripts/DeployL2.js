@@ -4,7 +4,7 @@ async function main() {
   const provider_url = "https://rpc.dev1.fluentlabs.xyz/";
   // const provider_url = "http://127.0.0.1:8546/"
 
-  let provider = new ethers.providers.JsonRpcProvider(provider_url);
+  let provider = new ethers.JsonRpcProvider(provider_url);
 
   const privateKey = process.env.PRIVATE_KEY;
   const signer = new ethers.Wallet(privateKey, provider);
@@ -22,8 +22,8 @@ async function deployL2(provider, signer) {
 
   const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
   let peggedToken = await PeggedToken.connect(signer).deploy();
-  await peggedToken.deployed();
-  console.log("Pegged token: ", peggedToken.address);
+  peggedToken = await peggedToken.waitForDeployment();
+  console.log("Pegged token: ", peggedToken.target);
 
   const BridgeContract = await ethers.getContractFactory("Bridge");
 
@@ -32,36 +32,36 @@ async function deployL2(provider, signer) {
     signer.getAddress(),
     rollupAddress,
   );
-  await bridge.deployed();
-  console.log("Bridge: ", bridge.address);
+  bridge = await bridge.waitForDeployment();
+  console.log("Bridge: ", bridge.target);
 
   const TokenFactoryContract =
     await ethers.getContractFactory("ERC20TokenFactory");
   let tokenFactory = await TokenFactoryContract.connect(signer).deploy(
-    peggedToken.address,
+    peggedToken.target,
   );
-  await tokenFactory.deployed();
-  console.log("TokenFactory: ", tokenFactory.address);
+  tokenFactory = await tokenFactory.waitForDeployment();
+  console.log("TokenFactory: ", tokenFactory.target);
 
   const ERC20GatewayContract = await ethers.getContractFactory("ERC20Gateway");
   let erc20Gateway = await ERC20GatewayContract.connect(signer).deploy(
-    bridge.address,
-    tokenFactory.address,
+    bridge.target,
+    tokenFactory.target,
   );
 
   console.log("token factory owner: ", await tokenFactory.owner());
-  const authTx = await tokenFactory.transferOwnership(erc20Gateway.address);
+  const authTx = await tokenFactory.transferOwnership(erc20Gateway.target);
   await authTx.wait();
   console.log("token factory owner: ", await tokenFactory.owner());
 
-  await erc20Gateway.deployed();
-  console.log("Gateway: ", erc20Gateway.address);
+  erc20Gateway = await erc20Gateway.waitForDeployment();
+  console.log("Gateway: ", erc20Gateway.target);
 
   return {
-    bridge: bridge.address,
-    erc20Gateway: erc20Gateway.address,
-    peggedToken: peggedToken.address,
-    tokenFactory: tokenFactory.address,
+    bridge: bridge.target,
+    erc20Gateway: erc20Gateway.target,
+    peggedToken: peggedToken.target,
+    tokenFactory: tokenFactory.target,
   };
 }
 

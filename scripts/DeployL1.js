@@ -1,14 +1,13 @@
 const { ethers } = require("hardhat");
-const {BigNumber} = require("ethers");
+const { BigNumber } = require("ethers");
 
 async function main() {
-  let provider_url =
-      "https://rpc.sepolia.org/"
-    // "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
+  let provider_url = "https://rpc.sepolia.org/";
+  // "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
   // const provider_url = "http://127.0.0.1:8545/";
 
   const privateKey = process.env.PRIVATE_KEY;
-  let provider = new ethers.providers.JsonRpcProvider(provider_url);
+  let provider = new ethers.JsonRpcProvider(provider_url);
 
   let signer = new ethers.Wallet(privateKey, provider);
   // signer = provider.getSigner()
@@ -24,37 +23,35 @@ async function deployL1(provider, signer) {
 
   console.log("Balance: ", balanceWei);
 
-  let awaiting = []
+  let awaiting = [];
 
   const Token = await ethers.getContractFactory("MockERC20Token");
   let l1Token = await Token.connect(signer).deploy(
     "Mock Token",
     "TKN",
-    ethers.utils.parseEther("1000000"),
+    ethers.parseEther("1000000"),
     await signer.getAddress(),
   );
-  await l1Token.deployed();
+  l1Token = await l1Token.waitForDeployment();
 
-  console.log("L1 token: ", l1Token.address)
-
-
+  console.log("L1 token: ", l1Token.target);
 
   const PeggedToken = await ethers.getContractFactory("ERC20PeggedToken");
   let peggedToken = await PeggedToken.connect(signer).deploy();
-  await peggedToken.deployed();
+  peggedToken = await peggedToken.waitForDeployment();
 
   // console.log("Contract: ", tx);
 
   // let peggedToken = await PeggedToken.connect(signer).attach("0x6Ff08946Cef705D7bBC5deef4E56004e2365979f");
-  console.log("Pegged token: ", peggedToken.address);
+  console.log("Pegged token: ", peggedToken.target);
 
   const RollupContract = await ethers.getContractFactory("Rollup");
   let rollup = await RollupContract.connect(signer).deploy();
-  await rollup.deployed();
+  rollup = await rollup.waitForDeployment();
 
   // let rollup = await RollupContract.connect(signer).attach("0xb592Ed460f5Ab1b2eF874bE5e3d0FbE6950127Da");
 
-  let rollupAddress = rollup.address;
+  let rollupAddress = rollup.target;
   console.log("Rollup address: ", rollupAddress);
 
   const BridgeContract = await ethers.getContractFactory("Bridge");
@@ -62,50 +59,50 @@ async function deployL1(provider, signer) {
     signer.getAddress(),
     rollupAddress,
   );
-  await bridge.deployed();
+  bridge = await bridge.waitForDeployment();
 
   // let bridge = await BridgeContract.connect(signer).attach("0xf70f7cADD71591e96BD696716A4A2bA6286c82e8");
-  console.log("Bridge: ", bridge.address);
+  console.log("Bridge: ", bridge.target);
 
   const TokenFactoryContract =
     await ethers.getContractFactory("ERC20TokenFactory");
 
   let tokenFactory = await TokenFactoryContract.connect(signer).deploy(
-      peggedToken.address,
-      {
-        gasLimit: 2000000,
-      }
+    peggedToken.target,
+    {
+      gasLimit: 2000000,
+    },
   );
-  await tokenFactory.deployed();
-  console.log("TokenFactory: ", tokenFactory.address);
+  tokenFactory = await tokenFactory.waitForDeployment();
+  console.log("TokenFactory: ", tokenFactory.target);
 
   const ERC20GatewayContract = await ethers.getContractFactory("ERC20Gateway");
   let erc20Gateway = await ERC20GatewayContract.connect(signer).deploy(
-    bridge.address,
-    tokenFactory.address,
-      {
-        gasLimit: 2000000,
-      }
+    bridge.target,
+    tokenFactory.target,
+    {
+      gasLimit: 2000000,
+    },
   );
-  await erc20Gateway.deployed();
-  console.log("Gateway: ", erc20Gateway.address);
+  erc20Gateway = await erc20Gateway.waitForDeployment();
+  console.log("Gateway: ", erc20Gateway.target);
 
-  const authTx = await tokenFactory.transferOwnership(erc20Gateway.address);
-  await authTx.wait()
-  console.log("Transferred ownership")
-  let setBridge = await rollup.setBridge(bridge.address);
+  const authTx = await tokenFactory.transferOwnership(erc20Gateway.target);
+  await authTx.wait();
+  console.log("Transferred ownership");
+  let setBridge = await rollup.setBridge(bridge.target);
   await setBridge.wait();
 
   // await Promise.all(awaiting)
 
-  console.log("Gateway contracts deployed")
+  console.log("Gateway contracts deployed");
 
   return {
-    bridge: bridge.address,
-    erc20Gateway: erc20Gateway.address,
-    rollup: rollup.address,
-    peggedToken: peggedToken.address,
-    tokenFactory: tokenFactory.address,
+    bridge: bridge.target,
+    erc20Gateway: erc20Gateway.target,
+    rollup: rollup.target,
+    peggedToken: peggedToken.target,
+    tokenFactory: tokenFactory.target,
   };
 }
 

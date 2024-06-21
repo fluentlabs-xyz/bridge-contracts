@@ -1,87 +1,85 @@
 const { ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
-const {expect} = require("chai");
+const { expect } = require("chai");
 
 async function main() {
-    let provider_url =
-        // "https://rpc2.sepolia.org";
-        "https://ethereum-holesky-rpc.publicnode.com";
-    // "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
-    // provider_url = "http://127.0.0.1:8545/"
+  let provider_url =
+    // "https://rpc2.sepolia.org";
+    "https://ethereum-holesky-rpc.publicnode.com";
+  // "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
+  // provider_url = "http://127.0.0.1:8545/"
 
-    const privateKey = process.env.PRIVATE_KEY;
-    let provider = new ethers.providers.JsonRpcProvider(provider_url);
+  const privateKey = process.env.PRIVATE_KEY;
+  let provider = new ethers.JsonRpcProvider(provider_url);
 
-    console.log(provider_url)
-    let signer = new ethers.Wallet(privateKey, provider);
-    // signer = provider.getSigner()
+  console.log(provider_url);
+  let signer = new ethers.Wallet(privateKey, provider);
+  // signer = provider.getSigner()
 
+  const BridgeContract = await ethers.getContractFactory("Bridge");
 
-    const BridgeContract = await ethers.getContractFactory("Bridge");
+  // let l1Bridge = await BridgeContract.connect(signer).attach("0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9");
+  let l1Bridge = await BridgeContract.connect(signer).attach(
+    "0xF3640a506f4f9db14E73325F7ba5Ece51C1963F7",
+  );
 
-    // let l1Bridge = await BridgeContract.connect(signer).attach("0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9");
-    let l1Bridge = await BridgeContract.connect(signer).attach("0xb57E1486193eE29a7881c914A63eD44EcD040b07");
+  const RestakingPoolContract =
+    await ethers.getContractFactory("RestakingPool");
 
-    const RestakingPoolContract = await ethers.getContractFactory("RestakingPool");
+  // let restakingPool = await RestakingPoolContract.connect(signer).attach("0x9A676e781A523b5d0C0e43731313A708CB607508");
+  let restakingPool = await RestakingPoolContract.connect(signer).attach(
+    "0x16D824728893A11a2765E7F9a80B86c328C38C38",
+  );
 
-    // let restakingPool = await RestakingPoolContract.connect(signer).attach("0x9A676e781A523b5d0C0e43731313A708CB607508");
-    let restakingPool = await RestakingPoolContract.connect(signer).attach("0x09F7c2b1013B99C74ba580fF1d47fA8656ad0687");
+  // const RestakerGatewayAddress = "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c";
+  const RestakerGatewayAddress = "0x522957b718FCA32C42f8f71aE992A834bfBe9ee2";
 
+  let nonce = await provider.getTransactionCount(signer.address);
+  console.log("Next transaction: ", nonce);
+  let pendingNonce = await provider.getTransactionCount(signer.address, "pending");
+  console.log("Next pending transaction: ", pendingNonce);
 
-    // const RestakerGatewayAddress = "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c";
-    const RestakerGatewayAddress = "0xD771250Ba58dB7D1AEd61018D460F6e18e3d4a20";
+  console.log("Token send");
+  const RestakerGateway = await ethers.getContractFactory("RestakerGateway");
 
-    let nonce = await signer.getTransactionCount();
-    console.log("Next transaction: ", nonce);
-    let pendingNonce = await signer.getTransactionCount("pending");
-    console.log("Next pending transaction: ", pendingNonce);
+  nonce = await provider.getTransactionCount(signer.address);
+  let restakerGateway = await RestakerGateway.connect(signer).attach(
+    RestakerGatewayAddress,
+  );
 
+  let minStake = await restakingPool.getMinStake();
+  console.log("Min stake: ", minStake);
 
-    console.log("Token send");
-    const RestakerGateway = await ethers.getContractFactory("RestakerGateway");
+  const send_tx = await restakerGateway.sendRestakedTokens(
+    await signer.getAddress(),
+    {
+      value: ethers.parseEther("32"),
+      gasLimit: 300000,
+      nonce,
+      maxPriorityFeePerGas: 21427514823n.mul(3),
+      maxFeePerGas: 36801940794n.mul(3),
+    },
+  );
 
-    nonce = await signer.getTransactionCount();
-    let restakerGateway =
-        await RestakerGateway.connect(signer).attach(RestakerGatewayAddress);
+  console.log(send_tx);
 
-    let minStake = await restakingPool.getMinStake()
-    console.log("Min stake: ", minStake)
+  let receipt = await send_tx.wait();
 
-    const send_tx = await restakerGateway.sendRestakedTokens(
-        await signer.getAddress(),
-        {
-            value: minStake,
-            gasLimit: 300000,
-            nonce,
-            maxPriorityFeePerGas: BigNumber.from(21427514823).mul(3),
-            maxFeePerGas: BigNumber.from(36801940794).mul(3),
-        },
-    );
+  const events = await l1Bridge.queryFilter("SentMessage", receipt.blockNumber);
 
-    console.log(send_tx);
+  expect(events.length).to.equal(1);
 
-    let receipt = await send_tx.wait();
+  const sentEvent = events[0];
 
+  let sendMessageHash = sentEvent.args["messageHash"];
 
-    const events = await l1Bridge.queryFilter(
-        "SentMessage",
-        receipt.blockNumber,
-    );
-
-    expect(events.length).to.equal(1);
-
-    const sentEvent = events[0];
-
-    let sendMessageHash = sentEvent.args["messageHash"];
-
-    console.log("Message hash", sendMessageHash);
-    console.log("Event", sentEvent);
-
+  console.log("Message hash", sendMessageHash);
+  console.log("Event", sentEvent);
 }
 
 main()
-    .then(() => process.exit(0))
-    .catch((error) => {
-        console.error(error);
-        process.exit(1);
-    });
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });

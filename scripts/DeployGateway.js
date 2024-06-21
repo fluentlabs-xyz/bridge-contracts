@@ -4,7 +4,7 @@ async function main() {
   const provider_url = "https://rpc.dev1.fluentlabs.xyz/";
   // const provider_url = "http://127.0.0.1:8545/"
 
-  let provider = new ethers.providers.JsonRpcProvider(provider_url);
+  let provider = new ethers.JsonRpcProvider(provider_url);
 
   const privateKey = process.env.PRIVATE_KEY;
   const signer = new ethers.Wallet(privateKey, provider);
@@ -23,8 +23,8 @@ async function main() {
     tokenFactory,
   );
 
-  await erc20Gateway.deployed();
-  console.log("Gateway: ", erc20Gateway.address);
+  erc20Gateway = await erc20Gateway.waitForDeployment();
+  console.log("Gateway: ", erc20Gateway.target);
 }
 
 main()

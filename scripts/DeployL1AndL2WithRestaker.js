@@ -7,29 +7,29 @@ async function main() {
   // const l1Url= "http://127.0.0.1:8545"
   let l1Url =
     "https://ethereum-holesky-rpc.publicnode.com";
-  let l1Provider = new ethers.providers.JsonRpcProvider(l1Url);
+  let l1Provider = new ethers.JsonRpcProvider(l1Url);
   // const l2Url= "http://127.0.0.1:8546/"
-  const l2Url = "https://rpc.dev1.fluentlabs.xyz/";
-  let l2Provider = new ethers.providers.JsonRpcProvider(l2Url);
+  const l2Url = "https://rpc.dev2.fluentlabs.xyz/";
+  let l2Provider = new ethers.JsonRpcProvider(l2Url);
 
   const privateKey = process.env.PRIVATE_KEY;
   const l1Signer = new ethers.Wallet(privateKey, l1Provider);
   const l2Signer = new ethers.Wallet(privateKey, l2Provider);
 
-  const amountToSend = ethers.utils.parseEther("10000");
+  // const amountToSend = ethers.parseEther("10000");
   // let s = l1Provider.getSigner()
   // await s.sendTransaction({
-  //   to: l1Signer.address,
+  //   to: l1Signer.target,
   //   value: "9000000000000000000000"
   // })
   // s = l2Provider.getSigner()
   // await s.sendTransaction({
-  //   to: l2Signer.address,
+  //   to: l2Signer.target,
   //   value: "9000000000000000000000"
   // })
 
 
-  console.log("Deploy L1 contracts:");
+  console.log/home/easy/wasm0/eigenlayer-contracts("Deploy L1 contracts:");
   let [{
     bridge: l1Bridge,
     _rollup,
