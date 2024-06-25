@@ -9,8 +9,6 @@ import "../interfaces/IEigenPodManager.sol";
 import "./IRestaker.sol";
 import "./IRestakerFacets.sol";
 
-import "hardhat/console.sol";
-
 contract RestakerFacets is Ownable, IRestakerFacets {
     mapping(bytes4 => FuncTarget) internal _selectorToTarget;
     IEigenPodManager internal _podManager;
@@ -41,26 +39,46 @@ contract RestakerFacets is Ownable, IRestakerFacets {
         _podManager = podManager;
         _delegationManager = delegationManager;
 
-        // pod manager sigs
-        _addSignature(FuncTarget.POD_MANAGER, "createPod()");
-        _addSignature(FuncTarget.POD_MANAGER, "stake(bytes,bytes,bytes32)");
+        // NOTE: pod manager sigs added during first initialization, for new deployments must be added manually
+        // _setSignature(FuncTarget.POD_MANAGER, "createPod()");
+        // _setSignature(FuncTarget.POD_MANAGER, "stake(bytes,bytes,bytes32)");
 
-        // delegation manager sigs
-        _addSignature(FuncTarget.DELEGATION_MANAGER, "undelegate(address)");
-        _addSignature(
-            FuncTarget.DELEGATION_MANAGER,
-            "queueWithdrawals((address[],uint256[],address)[])"
-        );
-        _addSignature(
-            FuncTarget.DELEGATION_MANAGER,
-            "delegateTo(address,(bytes,uint256),bytes32)"
-        );
+        // NOTE: delegation manager sigs added during first initialization, for new deployments must be added manually
+        // _setSignature(FuncTarget.DELEGATION_MANAGER, "undelegate(address)");
+        // _setSignature(
+        //     FuncTarget.DELEGATION_MANAGER,
+        //     "queueWithdrawals((address[],uint256[],address)[])"
+        // );
+        // _setSignature(
+        //     FuncTarget.DELEGATION_MANAGER,
+        //     "delegateTo(address,(bytes,uint256),bytes32)"
+        // );
+    }
+
+    function setSignature(
+        FuncTarget target,
+        string memory signature
+    ) external onlyOwner {
+        _setSignature(target, signature);
     }
 
     function _requireNotZero(address addr) internal pure {
         if (addr == address(0)) {
             revert ZeroAddress();
         }
+    }
+
+    /**
+     *
+     * @notice Set the `target` for `signature`.
+     */
+    function _setSignature(
+        FuncTarget target,
+        string memory signature
+    ) internal {
+        bytes4 sig = bytes4(keccak256(bytes(signature)));
+        _selectorToTarget[sig] = target;
+        emit SignatureSet(target, sig);
     }
 
     /**
@@ -82,18 +100,6 @@ contract RestakerFacets is Ownable, IRestakerFacets {
         return address(_podManager.getPod(_msgSender()));
     }
 
-    /**
-     *
-     * @notice Set the `target` for `signature`.
-     */
-    function _addSignature(
-        FuncTarget target,
-        string memory signature
-    ) internal {
-        bytes4 sig = bytes4(keccak256(bytes(signature)));
-        _selectorToTarget[sig] = target;
-    }
-
     function getEigenPodManager()
         external
         view
@@ -101,5 +107,14 @@ contract RestakerFacets is Ownable, IRestakerFacets {
         returns (IEigenPodManager)
     {
         return _podManager;
+    }
+
+    function getDelegationManager()
+        external
+        view
+        override
+        returns (IDelegationManager)
+    {
+        return _delegationManager;
     }
 }

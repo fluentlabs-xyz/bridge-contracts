@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MI0x4CBb43374eDbDD660058A5cC754ce9b2166c3266T
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -7,7 +7,6 @@ import "./Configurable.sol";
 import "./interfaces/IEigenPod.sol";
 import "./restaker/IRestaker.sol";
 import "./interfaces/ISignatureUtils.sol";
-import "hardhat/console.sol";
 
 contract RestakingPool is
     Configurable,
@@ -110,18 +109,18 @@ contract RestakingPool is
         emit Received(_msgSender(), msg.value);
     }
 
+    function stake(bytes32 code) external payable {
+        stake();
+        emit ReferralStake(code);
+    }
+
     /**
-     * @notice Exchange `msg.value` ETH for genETH by ratio.
+     * @notice Exchange `msg.value` ETH for inETH by ratio.
      */
-    function stake() external payable {
+    function stake() public payable {
         uint256 amount = msg.value;
 
-
-
-        uint256 minStake = getMinStake();
-
-
-        if (amount < minStake) {
+        if (amount < getMinStake()) {
             revert PoolStakeAmLessThanMin();
         }
 
@@ -129,16 +128,12 @@ contract RestakingPool is
             revert PoolStakeAmGreaterThanAvailable();
         }
 
-        
         ILiquidityToken token = config().getLiquidityToken();
         
         uint256 shares = token.convertToShares(amount);
-        
         token.mint(_msgSender(), shares);
-        
 
         _totalStaked += amount;
-        
         emit Staked(_msgSender(), amount, shares);
     }
 
@@ -186,9 +181,6 @@ contract RestakingPool is
     function getLiquidityToken() external view returns (address) {
 
         return config().getLiquidityTokenAddress();
-    }
-
-    function test() public {
     }
 
     function unstake(address to, uint256 shares) external nonReentrant {
@@ -354,7 +346,8 @@ contract RestakingPool is
 
     /**
      *
-     * @dev will be called only once for each restaker, because it activates restaking.
+     * @notice Will be called only once for each restaker, because it activates restaking.
+     * @dev deprecated. Remove after EigenPod activation
      */
     function activateRestaking(string memory provider) external onlyOperator {
         address restaker = _getRestakerOrRevert(provider);
@@ -364,7 +357,8 @@ contract RestakingPool is
 
     /**
      *
-     * @dev withdraw not restaked ETH
+     * @notice withdraw not restaked ETH
+     * @dev deprecated. Remove after EigenPod activation
      */
     function withdrawBeforeRestaking(
         string memory provider
@@ -374,6 +368,9 @@ contract RestakingPool is
         IEigenPod(restaker).withdrawBeforeRestaking();
     }
 
+    /**
+     * @notice Verify that validators has withdrawal credentials pointed to EigenPod
+     */
     function verifyWithdrawalCredentials(
         string memory provider,
         uint64 oracleTimestamp,
@@ -432,6 +429,13 @@ contract RestakingPool is
         );
     }
 
+    function undelegate(string memory provider) external onlyOperator {
+        IDelegationManager restaker = IDelegationManager(
+            _getRestakerOrRevert(provider)
+        );
+        restaker.undelegate(address(restaker));
+    }
+
     /*******************************************************************************
                         VIEW FUNCTIONS
     *******************************************************************************/
@@ -453,12 +457,7 @@ contract RestakingPool is
      */
     function getMinStake() public view virtual returns (uint256 amount) {
         // 1 shares = minimal respresentable amount
-
-        ILiquidityToken token = config().getLiquidityToken();
-
-        uint256 minConvertableAmount = token
-            .convertToAmount(1);
-
+        uint256 minConvertableAmount = config().getLiquidityToken().convertToAmount(1);
         return
             _minStakeAmount > minConvertableAmount
                 ? _minStakeAmount
@@ -607,9 +606,7 @@ contract RestakingPool is
         if (restaker != address(0)) {
             revert PoolRestakerExists();
         }
-        IRestakerDeployer deployer = config().getRestakerDeployer();
-        console.log("Deploy restaker");
-        restaker = address(deployer.deployRestaker());
+        restaker = address(config().getRestakerDeployer().deployRestaker());
         _restakers[providerHash] = restaker;
         emit RestakerAdded(provider, restaker);
     }

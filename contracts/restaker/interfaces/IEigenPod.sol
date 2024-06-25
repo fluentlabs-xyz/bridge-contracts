@@ -118,6 +118,28 @@ interface IEigenPod {
     /// @notice any ETH deposited into the EigenPod contract via the `receive` fallback function
     function nonBeaconChainETHBalanceWei() external view returns (uint256);
 
+    /// @notice Used to initialize the pointers to contracts crucial to the pod's functionality, in beacon proxy construction from EigenPodManager
+    function initialize(address owner) external;
+
+    /// @notice Called by EigenPodManager when the owner wants to create another ETH validator.
+    function stake(
+        bytes calldata pubkey,
+        bytes calldata signature,
+        bytes32 depositDataRoot
+    ) external payable;
+
+    /**
+     * @notice Transfers `amountWei` in ether from this contract to the specified `recipient` address
+     * @notice Called by EigenPodManager to withdrawBeaconChainETH that has been added to the EigenPod's balance due to a withdrawal from the beacon chain.
+     * @dev The podOwner must have already proved sufficient withdrawals, so that this pod's `withdrawableRestakedExecutionLayerGwei` exceeds the
+     * `amountWei` input (when converted to GWEI).
+     * @dev Reverts if `amountWei` is not a whole Gwei amount
+     */
+    function withdrawRestakedBeaconChainETH(
+        address recipient,
+        uint256 amount
+    ) external;
+
     /// @notice The single EigenPodManager for EigenLayer
     function eigenPodManager() external view returns (IEigenPodManager);
 
@@ -139,6 +161,11 @@ interface IEigenPod {
         bytes32 validatorPubkeyHash
     ) external view returns (ValidatorInfo memory);
 
+    /// @notice Returns the validatorInfo struct for the provided pubkey
+    function validatorPubkeyToInfo(
+        bytes calldata validatorPubkey
+    ) external view returns (ValidatorInfo memory);
+
     ///@notice mapping that tracks proven withdrawals
     function provenWithdrawal(
         bytes32 validatorPubkeyHash,
@@ -148,6 +175,11 @@ interface IEigenPod {
     /// @notice This returns the status of a given validator
     function validatorStatus(
         bytes32 pubkeyHash
+    ) external view returns (VALIDATOR_STATUS);
+
+    /// @notice This returns the status of a given validator pubkey
+    function validatorStatus(
+        bytes calldata validatorPubkey
     ) external view returns (VALIDATOR_STATUS);
 
     /**
@@ -175,8 +207,7 @@ interface IEigenPod {
      * @param oracleTimestamp The oracleTimestamp whose state root the `proof` will be proven against.
      *        Must be within `VERIFY_BALANCE_UPDATE_WINDOW_SECONDS` of the current block.
      * @param validatorIndices is the list of indices of the validators being proven, refer to consensus specs 
-     * @param balanceUpdateProofs is the proof of the validator's balance and validatorFields in the balance tree and the balanceRoot to prove for
-     *                                    the StrategyManager in case it must be removed from the list of the podOwner's strategies
+     * @param validatorFieldsProofs proofs against the `beaconStateRoot` for each validator in `validatorFields`
      * @param validatorFields are the fields of the "Validator Container", refer to consensus specs
      * @dev For more details on the Beacon Chain spec, see: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#validator
      */
@@ -184,7 +215,7 @@ interface IEigenPod {
         uint64 oracleTimestamp,
         uint40[] calldata validatorIndices,
         BeaconChainProofs.StateRootProof calldata stateRootProof,
-        BeaconChainProofs.BalanceUpdateProof[] calldata balanceUpdateProofs,
+        bytes[] calldata validatorFieldsProofs,
         bytes32[][] calldata validatorFields
     ) external;
 
@@ -227,6 +258,4 @@ interface IEigenPod {
         uint256[] memory amountsToWithdraw,
         address recipient
     ) external;
-
-    function initialize(address _podOwner) external;
 }

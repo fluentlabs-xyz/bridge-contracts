@@ -37,14 +37,13 @@ contract EigenPodManagerMock is Initializable, IEigenPodManager {
         ownerToPod[owner] = pod;
     }
 
-    function createPod() external override {
-        console.log("Create pod");
+    function createPod() external override returns (address) {
         require(
             !hasPod(msg.sender),
             "EigenPodManager.createPod: Sender already has a pod"
         );
         // deploy a pod if the sender doesn't have one already
-        _deployPod();
+        return address(_deployPod());
     }
 
     function _deployPod() internal returns (IEigenPod) {
@@ -54,7 +53,6 @@ contract EigenPodManagerMock is Initializable, IEigenPodManager {
             "EigenPodManager._deployPod: pod limit reached"
         );
         ++numPods;
-        console.log(numPods);
         // create the pod
         IEigenPod pod = IEigenPod(
             Create2.deploy(
@@ -67,7 +65,6 @@ contract EigenPodManagerMock is Initializable, IEigenPodManager {
                 )
             )
         );
-        console.log("After deploy");
         pod.initialize(msg.sender);
         // store the pod in the mapping
         ownerToPod[msg.sender] = pod;
@@ -120,4 +117,32 @@ contract EigenPodManagerMock is Initializable, IEigenPodManager {
     {
         return IStrategy(address(0));
     }
+
+    function recordBeaconChainETHBalanceUpdate(
+        address podOwner,
+        int256 sharesDelta
+    ) external override {}
+
+    function updateBeaconChainOracle(
+        IBeaconChainOracle newBeaconChainOracle
+    ) external override {}
+
+    function removeShares(address podOwner, uint256 shares) external override {}
+
+    function addShares(
+        address podOwner,
+        uint256 shares
+    ) external override returns (uint256) {}
+
+    function withdrawSharesAsTokens(
+        address podOwner,
+        address destination,
+        uint256 shares
+    ) external override {}
+
+    function denebForkTimestamp() external view override returns (uint64) {}
+
+    function setDenebForkTimestamp(
+        uint64 newDenebForkTimestamp
+    ) external override {}
 }

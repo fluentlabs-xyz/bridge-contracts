@@ -6,6 +6,8 @@ import "../interfaces/IEigenPodManager.sol";
 interface IRestakerFacets {
     error ZeroAddress();
 
+    event SignatureSet(FuncTarget indexed target, bytes4 signature);
+
     enum FuncTarget {
         POD,
         POD_MANAGER,
@@ -15,4 +17,6 @@ interface IRestakerFacets {
     function selectorToTarget(bytes4 sig) external view returns (address);
 
     function getEigenPodManager() external view returns (IEigenPodManager);
+
+    function getDelegationManager() external view returns (IDelegationManager);
 }

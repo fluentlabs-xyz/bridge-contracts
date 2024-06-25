@@ -19,10 +19,6 @@ contract DelegationManagerMock is IDelegationManager {
         bytes32 approverSalt
     ) external override {}
 
-    function undelegate(
-        address staker
-    ) external override returns (bytes32 withdrawalRoot) {}
-
     function queueWithdrawals(
         QueuedWithdrawalParams[] calldata queuedWithdrawalParams
     ) external override returns (bytes32[] memory) {}
@@ -40,13 +36,6 @@ contract DelegationManagerMock is IDelegationManager {
         uint256[] calldata middlewareTimesIndexes,
         bool[] calldata receiveAsTokens
     ) external override {}
-
-    function stakeRegistry()
-        external
-        view
-        override
-        returns (IStakeRegistryStub)
-    {}
 
     function delegatedTo(
         address staker
@@ -141,4 +130,53 @@ contract DelegationManagerMock is IDelegationManager {
         IStrategyManager.DeprecatedStruct_QueuedWithdrawal[]
             memory withdrawalsToQueue
     ) external override {}
+
+    function registerAsOperator(
+        OperatorDetails calldata registeringOperatorDetails,
+        string calldata metadataURI
+    ) external override {}
+
+    function modifyOperatorDetails(
+        OperatorDetails calldata newOperatorDetails
+    ) external override {}
+
+    function updateOperatorMetadataURI(
+        string calldata metadataURI
+    ) external override {}
+
+    function undelegate(
+        address staker
+    ) external override returns (bytes32[] memory withdrawalRoot) {}
+
+    function increaseDelegatedShares(
+        address staker,
+        IStrategy strategy,
+        uint256 shares
+    ) external override {}
+
+    function decreaseDelegatedShares(
+        address staker,
+        IStrategy strategy,
+        uint256 shares
+    ) external override {}
+
+    function getOperatorShares(
+        address operator,
+        IStrategy[] memory strategies
+    ) external view override returns (uint256[] memory) {}
+
+    function getWithdrawalDelay(
+        IStrategy[] calldata strategies
+    ) external view override returns (uint256) {}
+
+    function minWithdrawalDelayBlocks()
+        external
+        view
+        override
+        returns (uint256)
+    {}
+
+    function strategyWithdrawalDelayBlocks(
+        IStrategy strategy
+    ) external view override returns (uint256) {}
 }

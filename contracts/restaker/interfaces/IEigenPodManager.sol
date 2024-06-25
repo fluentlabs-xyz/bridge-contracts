@@ -25,8 +25,8 @@ interface IEigenPodManager {
     /// @notice Emitted to notify a deposit of beacon chain ETH recorded in the strategy manager
     event BeaconChainETHDeposited(address indexed podOwner, uint256 amount);
 
-    /// @notice Emitted when `maxPods` value is updated from `previousValue` to `newValue`
-    event MaxPodsUpdated(uint256 previousValue, uint256 newValue);
+    /// @notice Emitted when the balance of an EigenPod is updated
+    event PodSharesUpdated(address indexed podOwner, int256 sharesDelta);
 
     /// @notice Emitted when a withdrawal of beacon chain ETH is completed
     event BeaconChainETHWithdrawalCompleted(
@@ -38,15 +38,14 @@ interface IEigenPodManager {
         bytes32 withdrawalRoot
     );
 
+    event DenebForkTimestampUpdated(uint64 newValue);
+
     /**
      * @notice Creates an EigenPod for the sender.
      * @dev Function will revert if the `msg.sender` already has an EigenPod.
      * @dev Returns EigenPod address
      */
-    function createPod() external;
-
-    /// replace {createPod} for testnet
-    /// function createPod() external returns (address);
+    function createPod() external returns (address);
 
     /**
      * @notice Stakes for a new beacon chain validator on the sender's EigenPod.
@@ -60,6 +59,28 @@ interface IEigenPodManager {
         bytes calldata signature,
         bytes32 depositDataRoot
     ) external payable;
+
+    /**
+     * @notice Changes the `podOwner`'s shares by `sharesDelta` and performs a call to the DelegationManager
+     * to ensure that delegated shares are also tracked correctly
+     * @param podOwner is the pod owner whose balance is being updated.
+     * @param sharesDelta is the change in podOwner's beaconChainETHStrategy shares
+     * @dev Callable only by the podOwner's EigenPod contract.
+     * @dev Reverts if `sharesDelta` is not a whole Gwei amount
+     */
+    function recordBeaconChainETHBalanceUpdate(
+        address podOwner,
+        int256 sharesDelta
+    ) external;
+
+    /**
+     * @notice Updates the oracle contract that provides the beacon chain state root
+     * @param newBeaconChainOracle is the new oracle contract being pointed to
+     * @dev Callable only by the owner of this contract (i.e. governance)
+     */
+    function updateBeaconChainOracle(
+        IBeaconChainOracle newBeaconChainOracle
+    ) external;
 
     /// @notice Returns the address of the `podOwner`'s EigenPod if it has been deployed.
     function ownerToPod(address podOwner) external view returns (IEigenPod);
@@ -93,9 +114,6 @@ interface IEigenPodManager {
     /// @notice Returns the number of EigenPods that have been created
     function numPods() external view returns (uint256);
 
-    /// @notice Returns the maximum number of EigenPods that can be created
-    function maxPods() external view returns (uint256);
-
     /**
      * @notice Mapping from Pod owner owner to the number of shares they have in the virtual beacon chain ETH strategy.
      * @dev The share amount can become negative. This is necessary to accommodate the fact that a pod owner's virtual beacon chain ETH shares can
@@ -108,4 +126,50 @@ interface IEigenPodManager {
 
     /// @notice returns canonical, virtual beaconChainETH strategy
     function beaconChainETHStrategy() external view returns (IStrategy);
+
+    /**
+     * @notice Used by the DelegationManager to remove a pod owner's shares while they're in the withdrawal queue.
+     * Simply decreases the `podOwner`'s shares by `shares`, down to a minimum of zero.
+     * @dev This function reverts if it would result in `podOwnerShares[podOwner]` being less than zero, i.e. it is forbidden for this function to
+     * result in the `podOwner` incurring a "share deficit". This behavior prevents a Staker from queuing a withdrawal which improperly removes excessive
+     * shares from the operator to whom the staker is delegated.
+     * @dev Reverts if `shares` is not a whole Gwei amount
+     */
+    function removeShares(address podOwner, uint256 shares) external;
+
+    /**
+     * @notice Increases the `podOwner`'s shares by `shares`, paying off deficit if possible.
+     * Used by the DelegationManager to award a pod owner shares on exiting the withdrawal queue
+     * @dev Returns the number of shares added to `podOwnerShares[podOwner]` above zero, which will be less than the `shares` input
+     * in the event that the podOwner has an existing shares deficit (i.e. `podOwnerShares[podOwner]` starts below zero)
+     * @dev Reverts if `shares` is not a whole Gwei amount
+     */
+    function addShares(
+        address podOwner,
+        uint256 shares
+    ) external returns (uint256);
+
+    /**
+     * @notice Used by the DelegationManager to complete a withdrawal, sending tokens to some destination address
+     * @dev Prioritizes decreasing the podOwner's share deficit, if they have one
+     * @dev Reverts if `shares` is not a whole Gwei amount
+     */
+    function withdrawSharesAsTokens(
+        address podOwner,
+        address destination,
+        uint256 shares
+    ) external;
+
+    /**
+     * @notice the deneb hard fork timestamp used to determine which proof path to use for proving a withdrawal
+     */
+    function denebForkTimestamp() external view returns (uint64);
+
+    /**
+     * setting the deneb hard fork timestamp by the eigenPodManager owner
+     * @dev this function is designed to be called twice.  Once, it is set to type(uint64).max
+     * prior to the actual deneb fork timestamp being set, and then the second time it is set
+     * to the actual deneb fork timestamp.
+     */
+    function setDenebForkTimestamp(uint64 newDenebForkTimestamp) external;
 }

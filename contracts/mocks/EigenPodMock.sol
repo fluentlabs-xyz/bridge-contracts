@@ -94,14 +94,6 @@ contract EigenPodMock is Initializable, IEigenPod {
         bytes32[][] calldata validatorFields
     ) external override {}
 
-    function verifyBalanceUpdates(
-        uint64 oracleTimestamp,
-        uint40[] calldata validatorIndices,
-        BeaconChainProofs.StateRootProof calldata stateRootProof,
-        BeaconChainProofs.BalanceUpdateProof[] calldata balanceUpdateProofs,
-        bytes32[][] calldata validatorFields
-    ) external override {}
-
     function verifyAndProcessWithdrawals(
         uint64 oracleTimestamp,
         BeaconChainProofs.StateRootProof calldata stateRootProof,
@@ -124,5 +116,32 @@ contract EigenPodMock is Initializable, IEigenPod {
         IERC20[] memory tokenList,
         uint256[] memory amountsToWithdraw,
         address recipient
+    ) external override {}
+
+    function stake(
+        bytes calldata pubkey,
+        bytes calldata signature,
+        bytes32 depositDataRoot
+    ) external payable override {}
+
+    function withdrawRestakedBeaconChainETH(
+        address recipient,
+        uint256 amount
+    ) external override {}
+
+    function validatorPubkeyToInfo(
+        bytes calldata validatorPubkey
+    ) external view override returns (ValidatorInfo memory) {}
+
+    function validatorStatus(
+        bytes calldata validatorPubkey
+    ) external view override returns (VALIDATOR_STATUS) {}
+
+    function verifyBalanceUpdates(
+        uint64 oracleTimestamp,
+        uint40[] calldata validatorIndices,
+        BeaconChainProofs.StateRootProof calldata stateRootProof,
+        bytes[] calldata validatorFieldsProofs,
+        bytes32[][] calldata validatorFields
     ) external override {}
 }

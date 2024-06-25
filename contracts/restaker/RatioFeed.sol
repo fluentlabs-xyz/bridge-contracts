@@ -6,7 +6,6 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "./Configurable.sol";
 import "./interfaces/IRatioFeed.sol";
 import "./interfaces/IProtocolConfig.sol";
-import "hardhat/console.sol";
 
 contract RatioFeed is Configurable, IRatioFeed {
     uint32 public constant MAX_THRESHOLD = uint32(1e8); // 100000000
@@ -146,8 +145,6 @@ contract RatioFeed is Configurable, IRatioFeed {
      * @notice Get ratio of a token.
      */
     function getRatio(address token) public view override returns (uint256) {
-
-
         return _ratios[token];
     }
 
