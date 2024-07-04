@@ -1,13 +1,14 @@
 const { ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
 const { expect } = require("chai");
+const {vars} = require("hardhat/config");
 
 async function main() {
   let l2Url = "https://rpc.dev1.fluentlabs.xyz/";
   // const l2Url = "http://127.0.0.1:8546/";
   let provider = new ethers.JsonRpcProvider(l2Url);
 
-  const privateKey = process.env.PRIVATE_KEY;
+  const privateKey = vars.get("HOLESKY_PRIVATE_KEY");
 
   const l2Signer = new ethers.Wallet(privateKey, provider);
 

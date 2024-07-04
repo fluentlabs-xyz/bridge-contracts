@@ -2,8 +2,20 @@ const { ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
 const { expect } = require("chai");
 const fs = require("fs");
+const {vars} = require("hardhat/config");
 
 async function main() {
+
+  let sig = await ethers.getSigners()
+
+  console.log("Signer", sig[0].address, sig)
+
+  let balance = await ethers.provider.getBalance(sig[0].address)
+
+  console.log("Balance:", balance)
+  return
+
+
   let provider_url =
     // "https://rpc2.sepolia.org";
     // "https://eth-mainnet.g.alchemy.com/v2/demo"
@@ -11,7 +23,7 @@ async function main() {
   // "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
   // provider_url = "http://127.0.0.1:8545/"
 
-  const privateKey = process.env.PRIVATE_KEY;
+  const privateKey = vars.get("HOLESKY_PRIVATE_KEY");
   let provider = new ethers.JsonRpcProvider(provider_url);
 
   console.log(provider_url);

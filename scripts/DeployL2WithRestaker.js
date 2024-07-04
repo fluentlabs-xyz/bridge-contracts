@@ -3,11 +3,12 @@ const { BigNumber } = require("ethers");
 
 const deployL2 = require("./DeployL2");
 const deployRestakerL2 = require("./DeployRestakerL2");
+const {vars} = require("hardhat/config");
 
 async function main() {
   const provider_url = "https://rpc.dev1.fluentlabs.xyz/";
 
-  const privateKey = process.env.PRIVATE_KEY;
+  const privateKey = vars.get("HOLESKY_PRIVATE_KEY");
   let provider = new ethers.JsonRpcProvider(provider_url);
 
   let signer = new ethers.Wallet(privateKey, provider);

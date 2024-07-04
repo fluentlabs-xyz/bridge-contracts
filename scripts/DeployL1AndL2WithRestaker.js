@@ -2,6 +2,7 @@ const { ethers } = require("hardhat");
 
 const deployL1WithRestaker = require("./DeployL1WithRestaker");
 const deployL2WithRestaker = require("./DeployL2WithRestaker");
+const {vars} = require("hardhat/config");
 
 async function main() {
   // const l1Url= "http://127.0.0.1:8545"
@@ -12,7 +13,7 @@ async function main() {
   const l2Url = "https://rpc.dev2.fluentlabs.xyz/";
   let l2Provider = new ethers.JsonRpcProvider(l2Url);
 
-  const privateKey = process.env.PRIVATE_KEY;
+  const privateKey = vars.get("HOLESKY_PRIVATE_KEY");
   const l1Signer = new ethers.Wallet(privateKey, l1Provider);
   const l2Signer = new ethers.Wallet(privateKey, l2Provider);
 

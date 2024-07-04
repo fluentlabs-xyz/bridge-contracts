@@ -1,10 +1,11 @@
 const { ethers } = require("hardhat");
+const {vars} = require("hardhat/config");
 
 async function main() {
   let provider_url = "https://ethereum-holesky-rpc.publicnode.com";
   // const provider_url = "http://127.0.0.1:8545/";
 
-  const privateKey = process.env.PRIVATE_KEY;
+  const privateKey = vars.get("HOLESKY_PRIVATE_KEY");
   let provider = new ethers.JsonRpcProvider(provider_url);
 
   let signer = new ethers.Wallet(privateKey, provider);

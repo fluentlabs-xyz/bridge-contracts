@@ -1,5 +1,6 @@
 const { ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
+const {vars} = require("hardhat/config");
 
 async function main() {
   const provider_url = "https://rpc.dev.thefluent.xyz/";
@@ -7,7 +8,7 @@ async function main() {
 
   let provider = new ethers.JsonRpcProvider(provider_url);
 
-  const privateKey = process.env.PRIVATE_KEY;
+  const privateKey = vars.get("HOLESKY_PRIVATE_KEY");
   const signer = new ethers.Wallet(privateKey, provider);
   const address = await signer.getAddress();
   console.log("Signer: ", address);

@@ -1,12 +1,13 @@
 const { ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
+const {vars} = require("hardhat/config");
 
 async function main() {
   let provider_url = "https://rpc.sepolia.org/";
   // "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
   // const provider_url = "http://127.0.0.1:8545/";
 
-  const privateKey = process.env.PRIVATE_KEY;
+  const privateKey = vars.get("HOLESKY_PRIVATE_KEY");
   let provider = new ethers.JsonRpcProvider(provider_url);
 
   let signer = new ethers.Wallet(privateKey, provider);

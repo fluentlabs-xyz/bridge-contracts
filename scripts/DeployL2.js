@@ -1,4 +1,5 @@
 const { ethers } = require("hardhat");
+const {vars} = require("hardhat/config");
 
 async function main() {
   const provider_url = "https://rpc.dev1.fluentlabs.xyz/";
@@ -6,7 +7,7 @@ async function main() {
 
   let provider = new ethers.JsonRpcProvider(provider_url);
 
-  const privateKey = process.env.PRIVATE_KEY;
+  const privateKey = vars.get("HOLESKY_PRIVATE_KEY");
   const signer = new ethers.Wallet(privateKey, provider);
 
   await deployL2(provider, signer);

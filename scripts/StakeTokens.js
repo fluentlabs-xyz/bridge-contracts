@@ -1,6 +1,7 @@
 const { ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
 const { expect } = require("chai");
+const {vars} = require("hardhat/config");
 
 async function main() {
   let provider_url =
@@ -9,7 +10,7 @@ async function main() {
   // "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
   // provider_url = "http://127.0.0.1:8545/"
 
-  const privateKey = process.env.PRIVATE_KEY;
+  const privateKey = vars.get("HOLESKY_PRIVATE_KEY");;
   let provider = new ethers.JsonRpcProvider(provider_url);
 
   console.log(provider_url);
@@ -56,8 +57,6 @@ async function main() {
       value: ethers.parseEther("32"),
       gasLimit: 300000,
       nonce,
-      maxPriorityFeePerGas: 21427514823n.mul(3),
-      maxFeePerGas: 36801940794n.mul(3),
     },
   );
 

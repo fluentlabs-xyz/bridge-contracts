@@ -1,13 +1,14 @@
 const { ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
 const { expect } = require("chai");
+const {vars} = require("hardhat/config");
 
 async function main() {
   let l1Url =
     "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
   // const l1Url = "http://127.0.0.1:8545/";
   let provider = new ethers.JsonRpcProvider(l1Url);
-  const privateKey = process.env.PRIVATE_KEY;
+  const privateKey = vars.get("HOLESKY_PRIVATE_KEY");
 
   const l1Signer = new ethers.Wallet(privateKey, provider);
   console.log("Signer: ", await l1Signer.getAddress());

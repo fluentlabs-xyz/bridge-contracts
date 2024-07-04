@@ -1,5 +1,6 @@
 const { ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
+const {vars} = require("hardhat/config");
 
 async function main() {
   let providerUrlL1 =
@@ -7,7 +8,7 @@ async function main() {
     "https://eth-sepolia.g.alchemy.com/v2/DBpiq0grreNG4r0wdvAUCfdGJswhIPhk";
 
   let providerUrlL2 = "https://rpc.dev1.fluentlabs.xyz/";
-  const privateKey = process.env.PRIVATE_KEY;
+  const privateKey = vars.get("HOLESKY_PRIVATE_KEY");
 
   let providerL1 = new ethers.JsonRpcProvider(providerUrlL1);
 
