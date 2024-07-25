@@ -19,9 +19,8 @@ async function main() {
 
   const BridgeContract = await ethers.getContractFactory("Bridge");
 
-  // let l1Bridge = await BridgeContract.connect(signer).attach("0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9");
   let l1Bridge = await BridgeContract.connect(signer).attach(
-    "0xF3640a506f4f9db14E73325F7ba5Ece51C1963F7",
+    "0x26bDc9d2aA7BB9beE05ED737E16482D5718B02c3",
   );
 
   const RestakingPoolContract =
@@ -29,11 +28,11 @@ async function main() {
 
   // let restakingPool = await RestakingPoolContract.connect(signer).attach("0x9A676e781A523b5d0C0e43731313A708CB607508");
   let restakingPool = await RestakingPoolContract.connect(signer).attach(
-    "0x16D824728893A11a2765E7F9a80B86c328C38C38",
+    "0xf9Fe45dfcba217a1E814C6b74139A54588d6A606",
   );
 
   // const RestakerGatewayAddress = "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c";
-  const RestakerGatewayAddress = "0x522957b718FCA32C42f8f71aE992A834bfBe9ee2";
+  const RestakerGatewayAddress = "0xE3d5738aB4efF84eFC0A69cD852b63498159674a";
 
   let nonce = await provider.getTransactionCount(signer.address);
   console.log("Next transaction: ", nonce);
@@ -54,7 +53,7 @@ async function main() {
   const send_tx = await restakerGateway.sendRestakedTokens(
     await signer.getAddress(),
     {
-      value: ethers.parseEther("32"),
+      value: ethers.parseEther("1"),
       gasLimit: 300000,
       nonce,
     },

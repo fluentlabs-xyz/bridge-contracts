@@ -81,7 +81,7 @@ const restakerGatewayModule = buildModule("RestakerGateway", (m) => {
 const restakerFacetsModule = buildModule("RestakerFacets", (m) => {
     let owner = m.getAccount(0)
 
-	const restakerFacets= m.contract("RestakerFacets", [owner, "0x30770d7E3e71112d7A6b7259542D1f680a70e315", "0xdfB5f6CE42aAA7830E94ECFCcAd411beF4d4D5b6"])
+	const restakerFacets= m.contract("RestakerFacets", [owner, "0x30770d7E3e71112d7A6b7259542D1f680a70e315", "0xA44151489861Fe9e3055d95adC98FbD462B948e7"])
 	return {restakerFacets}
 });
 
