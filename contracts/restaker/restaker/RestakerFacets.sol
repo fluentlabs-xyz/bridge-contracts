@@ -40,19 +40,19 @@ contract RestakerFacets is Ownable, IRestakerFacets {
         _delegationManager = delegationManager;
 
         // NOTE: pod manager sigs added during first initialization, for new deployments must be added manually
-        // _setSignature(FuncTarget.POD_MANAGER, "createPod()");
-        // _setSignature(FuncTarget.POD_MANAGER, "stake(bytes,bytes,bytes32)");
+         _setSignature(FuncTarget.POD_MANAGER, "createPod()");
+         _setSignature(FuncTarget.POD_MANAGER, "stake(bytes,bytes,bytes32)");
 
         // NOTE: delegation manager sigs added during first initialization, for new deployments must be added manually
-        // _setSignature(FuncTarget.DELEGATION_MANAGER, "undelegate(address)");
-        // _setSignature(
-        //     FuncTarget.DELEGATION_MANAGER,
-        //     "queueWithdrawals((address[],uint256[],address)[])"
-        // );
-        // _setSignature(
-        //     FuncTarget.DELEGATION_MANAGER,
-        //     "delegateTo(address,(bytes,uint256),bytes32)"
-        // );
+         _setSignature(FuncTarget.DELEGATION_MANAGER, "undelegate(address)");
+         _setSignature(
+             FuncTarget.DELEGATION_MANAGER,
+             "queueWithdrawals((address[],uint256[],address)[])"
+         );
+         _setSignature(
+             FuncTarget.DELEGATION_MANAGER,
+             "delegateTo(address,(bytes,uint256),bytes32)"
+         );
     }
 
     function setSignature(
