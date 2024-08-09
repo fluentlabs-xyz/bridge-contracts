@@ -10,6 +10,7 @@ import "hardhat/console.sol";
 
 contract Bridge {
     uint256 public nonce;
+    uint256 public receivedNonce;
 
     enum MessageStatus {None, Failed, Success}
 
@@ -87,7 +88,7 @@ contract Bridge {
         bytes32 messageHash = keccak256(encodedMessage);
         require(receivedMessage[messageHash] != MessageStatus.Success, "Message already received");
 
-        require(Rollup(rollup).acceptedProofIndex(proofIndex));
+        require(Rollup(rollup).acceptedBatch(proofIndex));
 
         bytes32 _messageRoot = Rollup(rollup).withdrawRoots(proofIndex);
         require(
@@ -132,6 +133,8 @@ contract Bridge {
         uint256 _nonce,
         bytes calldata _message
     ) external payable onlyBridgeSender {
+        require(_nonce == _takeNextReceivedNonce(), "message received out of turn");
+
         bytes memory encodedMessage = _encodeMessage(
             _from,
             _to,
@@ -173,6 +176,14 @@ contract Bridge {
         uint256 currentNonce = nonce;
 
         ++nonce;
+
+        return currentNonce;
+    }
+
+    function _takeNextReceivedNonce() internal returns (uint256) {
+        uint256 currentNonce = receivedNonce;
+
+        ++receivedNonce;
 
         return currentNonce;
     }
