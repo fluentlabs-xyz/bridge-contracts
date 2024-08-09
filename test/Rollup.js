@@ -1,10 +1,17 @@
 const { expect } = require("chai");
+const { sleep } = require("@nomicfoundation/hardhat-verify/internal/utilities");
+
 describe("Rollup", function () {
   let rollup;
 
   before(async function () {
+    const Verifier = await ethers.getContractFactory("VerifierMock");
+    let verifier = await Verifier.deploy();
+
+    console.log("Verifier: ", verifier.target)
+
     const RollupContract = await ethers.getContractFactory("Rollup");
-    rollup = await RollupContract.deploy();
+    rollup = await RollupContract.deploy(10000,0,1, verifier.target);
   });
 
   it("Calculate merkle root", async function () {
@@ -33,16 +40,168 @@ describe("Rollup", function () {
     );
   });
 
+
   it("Accept proof", async function () {
     const accounts = await hre.ethers.getSigners();
     const rollupContractWithSigner = rollup.connect(accounts[0]);
 
-    await rollupContractWithSigner.acceptNextProof(
-      1,
+    let batchIndex = await rollupContractWithSigner.lastBatchedIndex();
+
+    expect(await rollupContractWithSigner.acceptedBatch(batchIndex + 1n)).to.eq(false);
+    expect(await rollupContractWithSigner.approvedBatch(batchIndex + 1n)).to.eq(false);
+
+    await rollupContractWithSigner.acceptNextBatch(
+        batchIndex + 1n,
+        "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
+        "0x",
+    );
+
+    let newBatchIndex = await rollupContractWithSigner.lastBatchedIndex();
+    expect(newBatchIndex).to.eq(batchIndex + 1n);
+    expect(await rollupContractWithSigner.acceptedBatch(newBatchIndex)).to.eq(true);
+  });
+
+
+  it("Proof check", async function () {
+    const accounts = await hre.ethers.getSigners();
+    const rollupContractWithSigner = rollup.connect(accounts[0]);
+
+    let batchIndex = await rollupContractWithSigner.lastBatchedIndex();
+
+    await rollupContractWithSigner.acceptNextBatch(
+        batchIndex + 1n,
+        "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
+        "0x",
+    );
+
+    await sleep(2000)
+
+    let newBatchIndex = await rollupContractWithSigner.lastBatchedIndex();
+
+    await rollupContractWithSigner.acceptNextBatch(
+        newBatchIndex + 1n,
+        "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
+        "0x",
+    );
+
+    expect(await rollupContractWithSigner.approvedBatch(1)).to.eq(true);
+
+    let challenge = await rollupContractWithSigner.getChallengeQueue();
+
+    console.log("Chale:", challenge);
+
+    let challengeLen = challenge.length
+
+    await rollupContractWithSigner.challengeBatch(
+        newBatchIndex + 1n, {
+          value: 10000
+        }
+    );
+
+    challenge = await rollupContractWithSigner.getChallengeQueue();
+    console.log("chel: ", challenge)
+    expect(challenge.length).to.eq(1);
+
+    await rollupContractWithSigner.proofBatch(newBatchIndex + 1n, "0x");
+
+    challenge = await rollupContractWithSigner.getChallengeQueue()
+    console.log("chel: ", challenge)
+
+    expect(challenge.length).to.eq(challengeLen);
+  });
+
+  it("Revert check", async function () {
+    const accounts = await hre.ethers.getSigners();
+    const rollupContractWithSigner = rollup.connect(accounts[0]);
+
+    let batchIndex = await rollupContractWithSigner.lastBatchedIndex();
+
+    await rollupContractWithSigner.acceptNextBatch(
+        batchIndex + 1n,
+        "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
+        "0x",
+    );
+
+    await sleep(2000)
+
+    let newBatchIndex = await rollupContractWithSigner.lastBatchedIndex();
+
+    await rollupContractWithSigner.acceptNextBatch(
+        newBatchIndex + 1n,
+        "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
+        "0x",
+    );
+
+    expect(await rollupContractWithSigner.approvedBatch(1)).to.eq(true);
+
+    await rollupContractWithSigner.challengeBatch(
+        newBatchIndex + 1n, {
+          value: 10000
+        }
+    );
+
+    expect(await rollupContractWithSigner.rollupCorrupted()).to.eq(false);
+
+    await sleep(2000)
+
+    await accounts[0].sendTransaction(
+        {
+          to: accounts[1].address,
+          value: 10
+        }
+    )
+
+    expect(await rollupContractWithSigner.rollupCorrupted()).to.eq(true);
+
+    await rollupContractWithSigner.forceRevertBatch(batchIndex)
+
+    expect(await rollupContractWithSigner.rollupCorrupted()).to.eq(false);
+  });
+
+  it("Corrupted check", async function () {
+    const accounts = await hre.ethers.getSigners();
+    const rollupContractWithSigner = rollup.connect(accounts[0]);
+
+    let batchIndex = await rollupContractWithSigner.lastBatchedIndex();
+
+    await rollupContractWithSigner.acceptNextBatch(
+      batchIndex + 1n,
       "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
       "0x",
-      // Buffer.from("308e8f517a141f7661301a6f3c8a29ad2736bda89bf06403ead102d2075c2981", "hex")
-      // [0x9b, 0x00, 0x34, 0x2a, 0x7f, 0xac, 0x9c, 0x0c, 0xc3, 0x3b, 0x36, 0x1c, 0xbb, 0x98, 0x43, 0x80, 0x33, 0x53, 0x77, 0x18, 0x1b, 0x94, 0x26, 0x47, 0xf4, 0x70, 0x58, 0xbc, 0x95, 0x12, 0x3d, 0x43]
     );
+
+    await sleep(2000)
+
+    let newBatchIndex = await rollupContractWithSigner.lastBatchedIndex();
+
+    await rollupContractWithSigner.acceptNextBatch(
+        newBatchIndex + 1n,
+        "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
+        "0x",
+    );
+
+    expect(await rollupContractWithSigner.approvedBatch(1)).to.eq(true);
+
+    await rollupContractWithSigner.challengeBatch(
+        newBatchIndex + 1n, {
+          value: 10000
+        }
+    );
+
+    expect(await rollupContractWithSigner.rollupCorrupted()).to.eq(false);
+
+    await sleep(2000)
+
+    await accounts[0].sendTransaction(
+        {
+          to: accounts[1].address,
+          value: 10
+        }
+    )
+
+    expect(await rollupContractWithSigner.rollupCorrupted()).to.eq(true);
   });
+
+
+
 });
