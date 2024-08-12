@@ -2,16 +2,18 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Bridge} from "./Bridge.sol";
 import "./interfaces/IRollupVerifier.sol";
 import "hardhat/console.sol";
+import "./restaker/libraries/BlobHashGetter.sol";
 
 pragma solidity ^0.8.0;
 
-contract Rollup is Ownable {
+contract Rollup is Ownable, BlobHashGetterDeployer {
     address public bridge;
 
     uint256 public lastBatchedIndex;
     uint256 public approveTimeout;
     uint256 public challengeDepositAmount;
     uint256 public challengeTime;
+    address public blobHashGetter;
 
     uint[] private challengeQueue;
     uint private challengeQueueStart;
@@ -40,6 +42,17 @@ contract Rollup is Ownable {
         verifier = IRollupVerifier(_verifier);
     }
 
+    function CalculateBlobHash(bytes memory commitment) public returns(bytes32) {
+
+        bytes32 hash = sha256(commitment);
+
+        hash &= 0x00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+        hash |= 0x0100000000000000000000000000000000000000000000000000000000000000;
+
+
+        return hash;
+    }
+
     function setBridge(address _bridge) external payable onlyOwner {
         bridge = _bridge;
     }
@@ -47,9 +60,15 @@ contract Rollup is Ownable {
     function acceptNextBatch(
         uint256 _batchIndex,
         bytes32 _withdrawRoot,
-        bytes memory _depositHashes
+        bytes memory _depositHashes,
+        bytes memory txsCommitment
     ) external payable {
-        blobhash(1);
+        bytes32 submittedBlobHash = BlobHashGetter.getBlobHash(blobHashGetter, 0);
+
+        bytes32 requiredBlobHash = CalculateBlobHash(txsCommitment);
+
+        require(submittedBlobHash == requiredBlobHash, "submitted wrong blob to da");
+
         require(!_rollupCorrupted(), "can't accept while rollup corrupted");
         require(lastBatchedIndex + 1 == _batchIndex, "incorrect batch index");
 
