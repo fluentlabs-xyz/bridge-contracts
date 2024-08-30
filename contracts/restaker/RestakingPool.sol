@@ -8,11 +8,7 @@ import "./interfaces/IEigenPod.sol";
 import "./restaker/IRestaker.sol";
 import "./interfaces/ISignatureUtils.sol";
 
-contract RestakingPool is
-    Configurable,
-    ReentrancyGuard,
-    IRestakingPool
-{
+contract RestakingPool is Configurable, ReentrancyGuard, IRestakingPool {
     /**
      * @dev block gas limit
      */
@@ -129,7 +125,7 @@ contract RestakingPool is
         }
 
         ILiquidityToken token = config().getLiquidityToken();
-        
+
         uint256 shares = token.convertToShares(amount);
         token.mint(_msgSender(), shares);
 
@@ -179,7 +175,6 @@ contract RestakingPool is
     }
 
     function getLiquidityToken() external view returns (address) {
-
         return config().getLiquidityTokenAddress();
     }
 
@@ -457,7 +452,9 @@ contract RestakingPool is
      */
     function getMinStake() public view virtual returns (uint256 amount) {
         // 1 shares = minimal respresentable amount
-        uint256 minConvertableAmount = config().getLiquidityToken().convertToAmount(1);
+        uint256 minConvertableAmount = config()
+            .getLiquidityToken()
+            .convertToAmount(1);
         return
             _minStakeAmount > minConvertableAmount
                 ? _minStakeAmount

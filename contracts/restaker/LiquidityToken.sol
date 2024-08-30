@@ -31,7 +31,10 @@ contract LiquidityToken is Configurable, ERC20, ILiquidityToken {
         __liquidityToken_init(name, symbol);
     }
 
-    function __liquidityToken_init(string memory name, string memory symbol) internal {
+    function __liquidityToken_init(
+        string memory name,
+        string memory symbol
+    ) internal {
         _changeName(name);
         _changeSymbol(symbol);
     }
@@ -67,10 +70,10 @@ contract LiquidityToken is Configurable, ERC20, ILiquidityToken {
     }
 
     function totalAssets()
-    external
-    view
-    override
-    returns (uint256 totalManagedEth)
+        external
+        view
+        override
+        returns (uint256 totalManagedEth)
     {
         return convertToAmount(totalSupply());
     }

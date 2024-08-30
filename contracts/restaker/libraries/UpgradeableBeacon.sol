@@ -28,7 +28,10 @@ contract UpgradeableBeacon is IBeacon, Ownable {
     /**
      * @dev Sets the address of the initial implementation, and the initial owner who can upgrade the beacon.
      */
-    constructor(address implementation_, address initialOwner) Ownable(initialOwner) {
+    constructor(
+        address implementation_,
+        address initialOwner
+    ) Ownable(initialOwner) {
         _setImplementation(implementation_);
     }
 

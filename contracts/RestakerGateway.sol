@@ -28,7 +28,7 @@ contract RestakerGateway is Ownable, ERC20Gateway {
 
     event TokensUnstaked(
         address _staker,
-//        uint256 _stakedAmount,
+        //        uint256 _stakedAmount,
         uint256 _mintedLiqudityToken
     );
 
@@ -40,9 +40,7 @@ contract RestakerGateway is Ownable, ERC20Gateway {
         restakerPool = _restakerPoolContract;
     }
 
-    function setRestakerPool(
-        address _restakerPool
-    ) external payable onlyOwner {
+    function setRestakerPool(address _restakerPool) external payable onlyOwner {
         restakerPool = _restakerPool;
     }
 
@@ -53,8 +51,8 @@ contract RestakerGateway is Ownable, ERC20Gateway {
     }
 
     function sendRestakedTokens(address to) external payable {
-        address tokenContract = IRestakingPool(restakerPool).getLiquidityToken();
-
+        address tokenContract = IRestakingPool(restakerPool)
+            .getLiquidityToken();
 
         IERC20 token = IERC20(tokenContract);
 
@@ -65,7 +63,6 @@ contract RestakerGateway is Ownable, ERC20Gateway {
         IRestakingPool(restakerPool).stake{value: stakedAmount}();
 
         uint256 mintedTokens = token.balanceOf(address(this)) - balanceBefore;
-
 
         sendTokensFrom(
             tokenContract,
@@ -80,12 +77,8 @@ contract RestakerGateway is Ownable, ERC20Gateway {
     }
 
     function sendUnstakingTokens(address to, uint256 _amount) external payable {
-
-
-
         address pegged_token = ERC20TokenFactory(tokenFactory)
             .computePeggedTokenAddress(address(this), liquidityToken);
-
 
         (address originGateway, address originAddress) = ERC20PeggedToken(
             pegged_token
@@ -95,7 +88,6 @@ contract RestakerGateway is Ownable, ERC20Gateway {
             originAddress == liquidityToken,
             "wrong pegged token calculation"
         );
-
 
         ERC20PeggedToken(pegged_token).burn(msg.sender, _amount);
 
@@ -115,13 +107,11 @@ contract RestakerGateway is Ownable, ERC20Gateway {
         address _to,
         uint256 _shares
     ) external payable onlyBridgeSender {
-
-        address tokenContract = IRestakingPool(restakerPool).getLiquidityToken();
+        address tokenContract = IRestakingPool(restakerPool)
+            .getLiquidityToken();
         ILiquidityToken token = ILiquidityToken(tokenContract);
 
         uint256 amount = token.convertToAmount(_shares);
-
-
 
         IRestakingPool(restakerPool).unstakeFrom(address(this), _to, _shares);
 

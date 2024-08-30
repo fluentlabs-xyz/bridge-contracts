@@ -103,11 +103,7 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
 
         if (tokenMapping[_token] == address(0)) {
             if (_from != address(this)) {
-                IERC20(_token).transferFrom(
-                    _from,
-                    address(this),
-                    _amount
-                );
+                IERC20(_token).transferFrom(_from, address(this), _amount);
             }
 
             bytes memory rawTokenMetadata = abi.encode(
@@ -141,7 +137,6 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
             );
         }
 
-
         IBridge(bridgeContract).sendMessage{value: _value}(otherSide, _message);
     }
 
@@ -153,45 +148,31 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
         uint256 _amount,
         bytes calldata _tokenMetadata
     ) external payable onlyBridgeSender {
-
         require(msg.value == 0, "Message value have to equal zero");
 
         require(_originToken != address(0), "Origin token can't be equal zero");
         uint256 l = _peggedToken.code.length;
 
-
         if (_peggedToken.code.length == 0) {
-
-
             address new_pegged_token = _deployL2Token(
                 _tokenMetadata,
                 _originToken
             );
-
-
-
 
             require(
                 new_pegged_token == _peggedToken,
                 "321Wrong pegged token provided as argument"
             );
 
-
             tokenMapping[_peggedToken] = _originToken;
-
-
         } else {
-
-
             require(
                 tokenMapping[_peggedToken] == _originToken,
                 "123Failed while token mapping check. Origin or pegged token is wrong"
             );
         }
 
-
         ERC20PeggedToken(_peggedToken).mint(_to, _amount);
-
 
         emit ReceivedTokens(_from, _to, _amount);
     }
@@ -233,8 +214,6 @@ contract ERC20Gateway is Ownable, IERC20Gateway {
         bytes memory _tokenMetadata,
         address _originToken
     ) internal returns (address) {
-
-
         address _peggedToken = ERC20TokenFactory(tokenFactory)
             .deployPeggedToken(address(this), _originToken);
 

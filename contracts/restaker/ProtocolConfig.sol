@@ -34,11 +34,14 @@ contract ProtocolConfig is ContextUpgradeable, IProtocolConfig {
             abi.encode(uint256(keccak256("restaker.config.RestakingPool")) - 1)
         ) & ~bytes32(uint256(0xff));
     bytes32 internal constant _CTOKEN_SLOT =
-        keccak256(abi.encode(uint256(keccak256("restaker.config.cToken")) - 1)) &
-            ~bytes32(uint256(0xff));
+        keccak256(
+            abi.encode(uint256(keccak256("restaker.config.cToken")) - 1)
+        ) & ~bytes32(uint256(0xff));
     bytes32 internal constant _RESTAKER_DEPLOYER =
         keccak256(
-            abi.encode(uint256(keccak256("restaker.config.RestakerDepoyer")) - 1)
+            abi.encode(
+                uint256(keccak256("restaker.config.RestakerDepoyer")) - 1
+            )
         ) & ~bytes32(uint256(0xff));
 
     modifier onlyGovernance() virtual {
@@ -122,7 +125,9 @@ contract ProtocolConfig is ContextUpgradeable, IProtocolConfig {
         _RESTAKING_POOL_SLOT.getAddressSlot().value = address(newValue);
     }
 
-    function setLiquidityToken(ILiquidityToken newValue) external onlyGovernance {
+    function setLiquidityToken(
+        ILiquidityToken newValue
+    ) external onlyGovernance {
         _requireNotZero(address(newValue));
         emit CTokenChanged(getLiquidityToken(), newValue);
         _CTOKEN_SLOT.getAddressSlot().value = address(newValue);
@@ -166,13 +171,16 @@ contract ProtocolConfig is ContextUpgradeable, IProtocolConfig {
         return IRatioFeed(_RATIO_FEED_SLOT.getAddressSlot().value);
     }
 
-    function getLiquidityToken() public view override returns (ILiquidityToken) {
+    function getLiquidityToken()
+        public
+        view
+        override
+        returns (ILiquidityToken)
+    {
         return ILiquidityToken(_CTOKEN_SLOT.getAddressSlot().value);
     }
 
     function getLiquidityTokenAddress() external view returns (address) {
-
-
         return _CTOKEN_SLOT.getAddressSlot().value;
     }
 

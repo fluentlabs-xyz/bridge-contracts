@@ -12,7 +12,11 @@ contract Bridge {
     uint256 public nonce;
     uint256 public receivedNonce;
 
-    enum MessageStatus {None, Failed, Success}
+    enum MessageStatus {
+        None,
+        Failed,
+        Success
+    }
 
     mapping(bytes32 => MessageStatus) public receivedMessage;
     mapping(bytes32 => bool) public sentMessage;
@@ -86,7 +90,10 @@ contract Bridge {
         );
 
         bytes32 messageHash = keccak256(encodedMessage);
-        require(receivedMessage[messageHash] != MessageStatus.Success, "Message already received");
+        require(
+            receivedMessage[messageHash] != MessageStatus.Success,
+            "Message already received"
+        );
 
         require(Rollup(rollup).acceptedBatch(proofIndex));
 
@@ -121,7 +128,10 @@ contract Bridge {
 
         bytes32 messageHash = keccak256(encodedMessage);
 
-        require(receivedMessage[messageHash] == MessageStatus.Failed, "Only failed message");
+        require(
+            receivedMessage[messageHash] == MessageStatus.Failed,
+            "Only failed message"
+        );
 
         _receiveMessage(_from, _to, _value, _nonce, _message, messageHash);
     }
@@ -133,7 +143,10 @@ contract Bridge {
         uint256 _nonce,
         bytes calldata _message
     ) external payable onlyBridgeSender {
-        require(_nonce == _takeNextReceivedNonce(), "message received out of turn");
+        require(
+            _nonce == _takeNextReceivedNonce(),
+            "message received out of turn"
+        );
 
         bytes memory encodedMessage = _encodeMessage(
             _from,
@@ -145,7 +158,10 @@ contract Bridge {
 
         bytes32 messageHash = keccak256(encodedMessage);
 
-        require(receivedMessage[messageHash] != MessageStatus.Success, "Message already received");
+        require(
+            receivedMessage[messageHash] != MessageStatus.Success,
+            "Message already received"
+        );
 
         _receiveMessage(_from, _to, _value, _nonce, _message, messageHash);
     }
@@ -159,7 +175,6 @@ contract Bridge {
         bytes32 _messageHash
     ) private {
         require(_to != address(this), "Forbid to call self");
-
 
         (bool success, bytes memory data) = _to.call{value: _value}(_message);
 

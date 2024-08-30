@@ -4,15 +4,11 @@ pragma solidity ^0.8.0;
 import "../interfaces/IRollupVerifier.sol";
 
 contract VerifierMock is IRollupVerifier {
-    constructor(){
-
-    }
+    constructor() {}
 
     function verifyAggregateProof(
         uint256 batchIndex,
         bytes calldata aggregationProof,
         bytes32 publicInputHash
-    ) external view {
-
-    }
+    ) external view {}
 }

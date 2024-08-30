@@ -15,12 +15,15 @@ contract BlobHashGetterDeployer {
     bytes internal CODE = hex"6000354960005260206000F3";
 
     function deploy() public returns (address) {
-        return  address(new ContractFactory(CODE));
+        return address(new ContractFactory(CODE));
     }
 }
 
 library BlobHashGetter {
-    function getBlobHash(address getter, uint256 idx) internal view returns (bytes32) {
+    function getBlobHash(
+        address getter,
+        uint256 idx
+    ) internal view returns (bytes32) {
         bool success;
         bytes32 blobHash;
         assembly {

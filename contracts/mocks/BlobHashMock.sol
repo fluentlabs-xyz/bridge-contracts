@@ -5,7 +5,6 @@ pragma solidity ^0.8.7;
 import "../restaker/libraries/BlobHashGetter.sol";
 
 contract BlobHashMock is BlobHashGetterDeployer {
-
     address public blobHashGetter;
 
     event BlobHash(bytes32 blobHash, bytes32 hash);
@@ -15,7 +14,6 @@ contract BlobHashMock is BlobHashGetterDeployer {
     }
 
     function CheckBlobHash(bytes memory commitment) public {
-
         bytes32 hash = sha256(commitment);
 
         hash &= 0x00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
@@ -25,5 +23,4 @@ contract BlobHashMock is BlobHashGetterDeployer {
 
         emit BlobHash(blob, hash);
     }
-
 }

@@ -30,17 +30,12 @@ contract RatioFeed is Configurable, IRatioFeed {
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor(
-        IProtocolConfig config,
-        uint256 ratioThreshold_
-    ) {
+    constructor(IProtocolConfig config, uint256 ratioThreshold_) {
         __Configurable_init(config);
         __RatioFeed_init(ratioThreshold_);
     }
 
-    function __RatioFeed_init(
-        uint256 ratioThreshold_
-    ) internal {
+    function __RatioFeed_init(uint256 ratioThreshold_) internal {
         _setRatioThreshold(ratioThreshold_);
     }
 

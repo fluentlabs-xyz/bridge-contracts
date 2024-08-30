@@ -34,9 +34,7 @@ abstract contract Configurable is Context {
         _;
     }
 
-    function __Configurable_init(
-        IProtocolConfig config_
-    ) internal {
+    function __Configurable_init(IProtocolConfig config_) internal {
         _config = config_;
     }
 

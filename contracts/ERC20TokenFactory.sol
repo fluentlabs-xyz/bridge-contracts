@@ -50,15 +50,11 @@ contract ERC20TokenFactory is Ownable {
         address _gateway,
         address _originToken
     ) external onlyOwner returns (address) {
-
         bytes32 salt = _calculateSalt(_gateway, _originToken);
-
 
         address peggedToken = Clones.cloneDeterministic(implementation, salt);
 
-
         emit TokenDeployed(_originToken, peggedToken);
-
 
         return peggedToken;
     }

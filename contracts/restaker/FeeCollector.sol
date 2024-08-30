@@ -6,11 +6,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./Configurable.sol";
 import "./interfaces/IFeeCollector.sol";
 
-contract FeeCollector is
-    Configurable,
-    ReentrancyGuard,
-    IFeeCollector
-{
+contract FeeCollector is Configurable, ReentrancyGuard, IFeeCollector {
     uint16 public constant MAX_COMMISSION = uint16(1e4); // 100.00
 
     uint16 public commission;
@@ -21,10 +17,7 @@ contract FeeCollector is
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor(
-        IProtocolConfig config,
-        uint16 commission_
-    ) {
+    constructor(IProtocolConfig config, uint16 commission_) {
         __Configurable_init(config);
         __FeeCollector_init(commission_);
     }
