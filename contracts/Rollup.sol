@@ -19,6 +19,8 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     uint[] private challengeQueue;
     uint private challengeQueueStart;
 
+    bool private daCheck;
+
     mapping(uint256 => bytes32) public acceptedBatchHash;
     mapping(uint256 => bytes32) public withdrawRoots;
     mapping(uint256 => bytes32) public depositsRoots;
@@ -42,9 +44,10 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         challengeTime = _challengeTime;
         approveTimeout = _approveTimeout;
         verifier = IRollupVerifier(_verifier);
+        daCheck = true;
     }
 
-    function CalculateBlobHash(bytes memory commitment) public returns(bytes32) {
+    function calculateBlobHash(bytes memory commitment) public returns(bytes32) {
 
         bytes32 hash = sha256(commitment);
 
@@ -59,6 +62,10 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         bridge = _bridge;
     }
 
+    function setDaCheck(bool isCheck) external payable onlyOwner {
+        daCheck = isCheck;
+    }
+
     function acceptNextBatch(
         uint256 _batchIndex,
         bytes32 _withdrawRoot,
@@ -67,11 +74,12 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         bytes memory _txs,
         bytes calldata _parentBatchHeader
     ) external payable {
-        bytes32 submittedBlobHash = BlobHashGetter.getBlobHash(blobHashGetter, 0);
-
-        bytes32 requiredBlobHash = CalculateBlobHash(txsCommitment);
-
-        require(submittedBlobHash == requiredBlobHash, "submitted wrong blob to da");
+        bytes32 requiredBlobHash;
+        if (daCheck) {
+            requiredBlobHash = calculateBlobHash(txsCommitment);
+            bytes32 submittedBlobHash = BlobHashGetter.getBlobHash(blobHashGetter, 0);
+            require(submittedBlobHash == requiredBlobHash, "submitted wrong blob to da");
+        }
 
         require(!_rollupCorrupted(), "can't accept while rollup corrupted");
         require(lastBatchedIndex + 1 == _batchIndex, "incorrect batch index");
@@ -87,12 +95,17 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
 
         (uint256 parentBatchPtr, uint256 length) = BatchHeaderCodec.loadBatchHash(_parentBatchHeader);
 
-        bytes32 parentBatchHeaderHash = BatchHeaderCodec.calculateBatchHash(parentBatchPtr);
-
+        bytes32 parentBatchHeaderHash;
         if (_batchIndex == 1) {
             require(parentBatchHeaderHash == bytes32(0), "provided not default parent hash");
         } else {
+            parentBatchHeaderHash = BatchHeaderCodec.calculateBatchHash(parentBatchPtr);
             require(parentBatchHeaderHash == acceptedBatchHash[_batchIndex - 1], "provided wrong parent hash");
+        }
+
+        bytes32 txHash;
+        if (_txs.length != 0) {
+            txHash = _calculateMerkleRoot(_txs);
         }
 
         uint256 batchPtr;
@@ -101,8 +114,8 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         }
         BatchHeaderCodec.storeVersion(batchPtr, 0);
         BatchHeaderCodec.storeBatchIndex(batchPtr, _batchIndex);
-        BatchHeaderCodec.storeCommitmentHash(batchPtr, submittedBlobHash);
-        BatchHeaderCodec.storeTxsHash(batchPtr, _calculateMerkleRoot(_txs));
+        BatchHeaderCodec.storeCommitmentHash(batchPtr, requiredBlobHash);
+        BatchHeaderCodec.storeTxsHash(batchPtr, txHash);
         BatchHeaderCodec.storeParentBatchHash(batchPtr, parentBatchHeaderHash);
 
         lastBatchedIndex = _batchIndex;
