@@ -1,5 +1,6 @@
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Bridge} from "./Bridge.sol";
+import {BatchHeaderCodec} from "./restaker/libraries/BatchHeaderCodec.sol";
 import "./interfaces/IRollupVerifier.sol";
 import "hardhat/console.sol";
 import "./restaker/libraries/BlobHashGetter.sol";
@@ -18,6 +19,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     uint[] private challengeQueue;
     uint private challengeQueueStart;
 
+    mapping(uint256 => bytes32) public acceptedBatchHash;
     mapping(uint256 => bytes32) public withdrawRoots;
     mapping(uint256 => bytes32) public depositsRoots;
     mapping(uint256 => uint256) public acceptedTime;
@@ -61,7 +63,9 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         uint256 _batchIndex,
         bytes32 _withdrawRoot,
         bytes memory _depositHashes,
-        bytes memory txsCommitment
+        bytes memory txsCommitment,
+        bytes memory _txs,
+        bytes calldata _parentBatchHeader
     ) external payable {
         bytes32 submittedBlobHash = BlobHashGetter.getBlobHash(blobHashGetter, 0);
 
@@ -81,16 +85,30 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
             depositsRoots[_batchIndex] = _depositRoot;
         }
 
-        withdrawRoots[_batchIndex] = _withdrawRoot;
+        (uint256 parentBatchPtr, uint256 length) = BatchHeaderCodec.loadBatchHash(_parentBatchHeader);
+
+        bytes32 parentBatchHeaderHash = BatchHeaderCodec.calculateBatchHash(parentBatchPtr);
+
+        if (_batchIndex == 1) {
+            require(parentBatchHeaderHash == bytes32(0), "provided not default parent hash");
+        } else {
+            require(parentBatchHeaderHash == acceptedBatchHash[_batchIndex - 1], "provided wrong parent hash");
+        }
+
+        uint256 batchPtr;
+        assembly {
+            batchPtr := mload(0x40)
+        }
+        BatchHeaderCodec.storeVersion(batchPtr, 0);
+        BatchHeaderCodec.storeBatchIndex(batchPtr, _batchIndex);
+        BatchHeaderCodec.storeCommitmentHash(batchPtr, submittedBlobHash);
+        BatchHeaderCodec.storeTxsHash(batchPtr, _calculateMerkleRoot(_txs));
+        BatchHeaderCodec.storeParentBatchHash(batchPtr, parentBatchHeaderHash);
+
         lastBatchedIndex = _batchIndex;
-        console.log(block.timestamp);
+        acceptedBatchHash[_batchIndex] = BatchHeaderCodec.calculateBatchHash(batchPtr);
+        withdrawRoots[_batchIndex] = _withdrawRoot;
         acceptedTime[_batchIndex] = block.timestamp;
-    }
-
-    function calculateBatchHash(
-        uint256 _batchIndex
-    ) internal returns (bytes32) {
-
     }
 
     function getChallengeQueue() public view returns (uint[] memory) {
