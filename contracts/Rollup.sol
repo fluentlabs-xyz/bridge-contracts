@@ -2,7 +2,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Bridge} from "./Bridge.sol";
 import {BatchHeaderCodec} from "./restaker/libraries/BatchHeaderCodec.sol";
 import "./interfaces/IRollupVerifier.sol";
-import "hardhat/console.sol";
 import "./restaker/libraries/BlobHashGetter.sol";
 
 pragma solidity ^0.8.0;
@@ -47,13 +46,13 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         daCheck = true;
     }
 
-    function calculateBlobHash(bytes memory commitment) public returns(bytes32) {
-
+    function calculateBlobHash(
+        bytes memory commitment
+    ) public returns (bytes32) {
         bytes32 hash = sha256(commitment);
 
         hash &= 0x00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
         hash |= 0x0100000000000000000000000000000000000000000000000000000000000000;
-
 
         return hash;
     }
@@ -77,8 +76,14 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         bytes32 requiredBlobHash;
         if (daCheck) {
             requiredBlobHash = calculateBlobHash(txsCommitment);
-            bytes32 submittedBlobHash = BlobHashGetter.getBlobHash(blobHashGetter, 0);
-            require(submittedBlobHash == requiredBlobHash, "submitted wrong blob to da");
+            bytes32 submittedBlobHash = BlobHashGetter.getBlobHash(
+                blobHashGetter,
+                0
+            );
+            require(
+                submittedBlobHash == requiredBlobHash,
+                "submitted wrong blob to da"
+            );
         }
 
         require(!_rollupCorrupted(), "can't accept while rollup corrupted");
@@ -93,14 +98,23 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
             depositsRoots[_batchIndex] = _depositRoot;
         }
 
-        (uint256 parentBatchPtr, uint256 length) = BatchHeaderCodec.loadBatchHash(_parentBatchHeader);
+        (uint256 parentBatchPtr, uint256 length) = BatchHeaderCodec
+            .loadBatchHash(_parentBatchHeader);
 
         bytes32 parentBatchHeaderHash;
         if (_batchIndex == 1) {
-            require(parentBatchHeaderHash == bytes32(0), "provided not default parent hash");
+            require(
+                parentBatchHeaderHash == bytes32(0),
+                "provided not default parent hash"
+            );
         } else {
-            parentBatchHeaderHash = BatchHeaderCodec.calculateBatchHash(parentBatchPtr);
-            require(parentBatchHeaderHash == acceptedBatchHash[_batchIndex - 1], "provided wrong parent hash");
+            parentBatchHeaderHash = BatchHeaderCodec.calculateBatchHash(
+                parentBatchPtr
+            );
+            require(
+                parentBatchHeaderHash == acceptedBatchHash[_batchIndex - 1],
+                "provided wrong parent hash"
+            );
         }
 
         bytes32 txHash;
@@ -119,7 +133,9 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         BatchHeaderCodec.storeParentBatchHash(batchPtr, parentBatchHeaderHash);
 
         lastBatchedIndex = _batchIndex;
-        acceptedBatchHash[_batchIndex] = BatchHeaderCodec.calculateBatchHash(batchPtr);
+        acceptedBatchHash[_batchIndex] = BatchHeaderCodec.calculateBatchHash(
+            batchPtr
+        );
         withdrawRoots[_batchIndex] = _withdrawRoot;
         acceptedTime[_batchIndex] = block.timestamp;
     }
@@ -133,34 +149,29 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     }
 
     function _rollupCorrupted() internal view returns (bool) {
-        return challengeQueue.length != 0 && challengeDeadline[challengeQueue[0]] < block.timestamp;
+        return
+            challengeQueue.length != 0 &&
+            challengeDeadline[challengeQueue[0]] < block.timestamp;
     }
 
-    function acceptedBatch(
-        uint256 _batchIndex
-    ) external view returns (bool) {
+    function acceptedBatch(uint256 _batchIndex) external view returns (bool) {
         return _acceptedBatch(_batchIndex);
     }
 
-    function _acceptedBatch(
-        uint256 _batchIndex
-    ) internal view returns (bool) {
+    function _acceptedBatch(uint256 _batchIndex) internal view returns (bool) {
         return _batchIndex <= lastBatchedIndex;
     }
 
-    function approvedBatch(
-        uint256 _batchIndex
-    ) external view returns (bool) {
+    function approvedBatch(uint256 _batchIndex) external view returns (bool) {
         return _approvedBatch(_batchIndex);
     }
 
-    function _approvedBatch(
-        uint256 _batchIndex
-    ) internal view returns (bool) {
+    function _approvedBatch(uint256 _batchIndex) internal view returns (bool) {
         uint256 batchTime = acceptedTime[_batchIndex];
 
-        console.log(block.timestamp);
-        return _acceptedBatch(_batchIndex) && block.timestamp - batchTime > approveTimeout;
+        return
+            _acceptedBatch(_batchIndex) &&
+            block.timestamp - batchTime > approveTimeout;
     }
 
     function validateDepositsHashes(
@@ -180,14 +191,18 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
 
         return true;
     }
-    
-    function challengeBatch(
-        uint256 _batchIndex
-    ) external payable {
-        require(!_approvedBatch(_batchIndex), "batch already approved");
-        require(batchChallenger[_batchIndex] == address(0), "batch already challenged");
 
-        require(msg.value >= challengeDepositAmount, "need to send challenge deposit in value");
+    function challengeBatch(uint256 _batchIndex) external payable {
+        require(!_approvedBatch(_batchIndex), "batch already approved");
+        require(
+            batchChallenger[_batchIndex] == address(0),
+            "batch already challenged"
+        );
+
+        require(
+            msg.value >= challengeDepositAmount,
+            "need to send challenge deposit in value"
+        );
 
         challengerDeposit[msg.sender] += msg.value;
         batchChallenger[_batchIndex] = msg.sender;
@@ -199,18 +214,19 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         uint256 _batchIndex,
         bytes calldata _aggregationProof
     ) external {
-        bytes32 _publicInputHash = keccak256(
-            ""
+        bytes32 _publicInputHash = keccak256("");
+        verifier.verifyAggregateProof(
+            _batchIndex,
+            _aggregationProof,
+            _publicInputHash
         );
-        console.log(address(verifier));
-        verifier.verifyAggregateProof(_batchIndex, _aggregationProof, _publicInputHash);
 
         address challenger = batchChallenger[_batchIndex];
         batchChallenger[_batchIndex] = address(0);
         challengerDeposit[challenger] -= challengeDepositAmount;
 
         for (uint256 i = 0; i < challengeQueue.length; i++) {
-            if (challengeQueue[i] == _batchIndex){
+            if (challengeQueue[i] == _batchIndex) {
                 delete challengeQueue[i];
             }
         }
@@ -218,7 +234,10 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     }
 
     function _cleanQueue() internal {
-        while (challengeQueue.length != 0 && challengeQueue[challengeQueueStart] == 0) {
+        while (
+            challengeQueue.length != 0 &&
+            challengeQueue[challengeQueueStart] == 0
+        ) {
             ++challengeQueueStart;
             if (challengeQueueStart >= challengeQueue.length) {
                 challengeQueueStart = 0;
@@ -234,7 +253,11 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         require(_acceptedBatch(_revertedBatchIndex), "batch not accepted yet");
         require(_revertedBatchIndex != 0, "batch index can't be zero");
         for (uint256 i = _revertedBatchIndex; i <= lastBatchedIndex; i++) {
-            for (uint256 j = challengeQueueStart; j < challengeQueue.length; j++) {
+            for (
+                uint256 j = challengeQueueStart;
+                j < challengeQueue.length;
+                j++
+            ) {
                 if (i == challengeQueue[j]) {
                     delete challengeQueue[j];
                 }

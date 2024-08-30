@@ -84,10 +84,9 @@ describe("Rollup", function () {
 
     let batchIndex = await rollupContractWithSigner.lastBatchedIndex();
 
-    console.log(batchIndex)
     let parentBatchHash;
     if (batchIndex > 1n) {
-      parentBatchHash = rollupContractWithSigner.acceptedBatchHash(batchIndex);
+      parentBatchHash = await rollupContractWithSigner.acceptedBatchHash(batchIndex - 1n);
     } else {
       parentBatchHash = "0x0000000000000000000000000000000000000000000000000000000000000000"
     }
@@ -112,7 +111,6 @@ describe("Rollup", function () {
     );
 
     await sleep(2000)
-    console.log("Batch after sleep: ", batchIndex)
     let newBatchIndex = await rollupContractWithSigner.lastBatchedIndex();
 
     if (newBatchIndex > 1n) {
@@ -144,8 +142,6 @@ describe("Rollup", function () {
 
     let challenge = await rollupContractWithSigner.getChallengeQueue();
 
-    console.log("Chale:", challenge);
-
     let challengeLen = challenge.length
 
     await rollupContractWithSigner.challengeBatch(
@@ -155,13 +151,11 @@ describe("Rollup", function () {
     );
 
     challenge = await rollupContractWithSigner.getChallengeQueue();
-    console.log("chel: ", challenge)
     expect(challenge.length).to.eq(1);
 
     await rollupContractWithSigner.proofBatch(newBatchIndex + 1n, "0x");
 
     challenge = await rollupContractWithSigner.getChallengeQueue()
-    console.log("chel: ", challenge)
 
     expect(challenge.length).to.eq(challengeLen);
   });
@@ -172,20 +166,60 @@ describe("Rollup", function () {
 
     let batchIndex = await rollupContractWithSigner.lastBatchedIndex();
 
+      let parentBatchHash;
+      if (batchIndex > 1n) {
+          parentBatchHash = await rollupContractWithSigner.acceptedBatchHash(batchIndex - 1n);
+      } else {
+          parentBatchHash = "0x0000000000000000000000000000000000000000000000000000000000000000"
+      }
+
+      let parentBatchHeader = ethers.solidityPacked(
+          ["uint8", "uint64", "uint256", "uint256", "uint256"],
+          [
+              0,
+              batchIndex,
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+              parentBatchHash
+          ])
+
     await rollupContractWithSigner.acceptNextBatch(
         batchIndex + 1n,
         "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
         "0x",
+        "0x",
+        "0x",
+        parentBatchHeader
     );
 
     await sleep(2000)
 
     let newBatchIndex = await rollupContractWithSigner.lastBatchedIndex();
 
+      if (newBatchIndex > 1n) {
+          parentBatchHash = await rollupContractWithSigner.acceptedBatchHash(newBatchIndex - 1n);
+      } else {
+          parentBatchHash = "0x0000000000000000000000000000000000000000000000000000000000000000"
+      }
+
+      parentBatchHeader = ethers.solidityPacked(
+          ["uint8", "uint64", "uint256", "uint256", "uint256"],
+          [
+              0,
+              newBatchIndex,
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+              parentBatchHash
+          ])
+
+
     await rollupContractWithSigner.acceptNextBatch(
         newBatchIndex + 1n,
         "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
         "0x",
+        "0x",
+        "0x",
+        parentBatchHeader
     );
 
     expect(await rollupContractWithSigner.approvedBatch(1)).to.eq(true);
@@ -219,22 +253,60 @@ describe("Rollup", function () {
     const rollupContractWithSigner = rollup.connect(accounts[0]);
 
     let batchIndex = await rollupContractWithSigner.lastBatchedIndex();
+      let parentBatchHash;
+      if (batchIndex > 1n) {
+          parentBatchHash = await rollupContractWithSigner.acceptedBatchHash(batchIndex - 1n);
+      } else {
+          parentBatchHash = "0x0000000000000000000000000000000000000000000000000000000000000000"
+      }
 
-    await rollupContractWithSigner.acceptNextBatch(
-      batchIndex + 1n,
-      "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
-      "0x",
-    );
+      let parentBatchHeader = ethers.solidityPacked(
+          ["uint8", "uint64", "uint256", "uint256", "uint256"],
+          [
+              0,
+              batchIndex,
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+              parentBatchHash
+          ])
 
+      await rollupContractWithSigner.acceptNextBatch(
+          batchIndex + 1n,
+          "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
+          "0x",
+          "0x",
+          "0x",
+          parentBatchHeader
+      );
     await sleep(2000)
 
     let newBatchIndex = await rollupContractWithSigner.lastBatchedIndex();
 
-    await rollupContractWithSigner.acceptNextBatch(
-        newBatchIndex + 1n,
-        "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
-        "0x",
-    );
+      if (newBatchIndex > 1n) {
+          parentBatchHash = await rollupContractWithSigner.acceptedBatchHash(newBatchIndex - 1n);
+      } else {
+          parentBatchHash = "0x0000000000000000000000000000000000000000000000000000000000000000"
+      }
+
+      parentBatchHeader = ethers.solidityPacked(
+          ["uint8", "uint64", "uint256", "uint256", "uint256"],
+          [
+              0,
+              newBatchIndex,
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+              parentBatchHash
+          ])
+
+
+      await rollupContractWithSigner.acceptNextBatch(
+          newBatchIndex + 1n,
+          "0x1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
+          "0x",
+          "0x",
+          "0x",
+          parentBatchHeader
+      );
 
     expect(await rollupContractWithSigner.approvedBatch(1)).to.eq(true);
 
@@ -257,7 +329,4 @@ describe("Rollup", function () {
 
     expect(await rollupContractWithSigner.rollupCorrupted()).to.eq(true);
   });
-
-
-
 });
