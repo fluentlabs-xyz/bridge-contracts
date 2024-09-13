@@ -24,6 +24,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     mapping(uint256 => bytes32) public withdrawRoots;
     mapping(uint256 => bytes32) public depositsRoots;
     mapping(uint256 => uint256) public acceptedTime;
+    mapping(uint256 => bool)    public proofedBatch;
 
     mapping(address => uint256) public challengerDeposit;
     mapping(uint256 => address) public batchChallenger;
@@ -194,6 +195,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
 
     function challengeBatch(uint256 _batchIndex) external payable {
         require(!_approvedBatch(_batchIndex), "batch already approved");
+        require(!proofedBatch[_batchIndex], "batch already proofed");
         require(
             batchChallenger[_batchIndex] == address(0),
             "batch already challenged"
@@ -221,16 +223,20 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
             _publicInputHash
         );
 
+        proofedBatch[_batchIndex] = true;
         address challenger = batchChallenger[_batchIndex];
-        batchChallenger[_batchIndex] = address(0);
-        challengerDeposit[challenger] -= challengeDepositAmount;
 
-        for (uint256 i = 0; i < challengeQueue.length; i++) {
-            if (challengeQueue[i] == _batchIndex) {
-                delete challengeQueue[i];
+        if (challenger != address(0)) {
+            batchChallenger[_batchIndex] = address(0);
+            challengerDeposit[challenger] -= challengeDepositAmount;
+
+            for (uint256 i = 0; i < challengeQueue.length; i++) {
+                if (challengeQueue[i] == _batchIndex) {
+                    delete challengeQueue[i];
+                }
             }
+            _cleanQueue();
         }
-        _cleanQueue();
     }
 
     function _cleanQueue() internal {
