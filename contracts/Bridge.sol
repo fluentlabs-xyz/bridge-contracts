@@ -3,7 +3,7 @@
 pragma solidity ^0.8.0;
 
 import {IERC20Gateway} from "./interfaces/IERC20Gateway.sol";
-import {Rollup} from "./Rollup.sol";
+import {BatchRollup} from "./rollup/BatchRollup.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "hardhat/console.sol";
@@ -95,11 +95,11 @@ contract Bridge {
             "Message already received"
         );
 
-        require(Rollup(rollup).acceptedBatch(proofIndex));
+        require(BatchRollup(rollup).acceptedBatch(proofIndex));
 
-        bytes32 _messageRoot = Rollup(rollup).withdrawRoots(proofIndex);
+        bytes32 _messageRoot = BatchRollup(rollup).withdrawRoots(proofIndex);
         require(
-            Rollup(rollup).verifyMerkleProof(
+            BatchRollup(rollup).verifyMerkleProof(
                 _messageRoot,
                 messageHash,
                 _nonce,

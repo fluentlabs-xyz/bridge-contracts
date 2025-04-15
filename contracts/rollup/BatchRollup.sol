@@ -1,12 +1,12 @@
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Bridge} from "./Bridge.sol";
-import {BatchHeaderCodec} from "./restaker/libraries/BatchHeaderCodec.sol";
-import "./interfaces/IRollupVerifier.sol";
-import "./restaker/libraries/BlobHashGetter.sol";
+import {Bridge} from "../Bridge.sol";
+import {BatchHeaderCodec} from "../restaker/libraries/BatchHeaderCodec.sol";
+import "../interfaces/IRollupVerifier.sol";
+import "../restaker/libraries/BlobHashGetter.sol";
 
 pragma solidity ^0.8.0;
 
-contract Rollup is Ownable, BlobHashGetterDeployer {
+contract BatchRollup is Ownable, BlobHashGetterDeployer {
     address public bridge;
 
     uint256 public lastBatchedIndex;
