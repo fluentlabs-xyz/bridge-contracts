@@ -3,10 +3,10 @@
 pragma solidity ^0.8.0;
 
 import {IERC20Gateway} from "./interfaces/IERC20Gateway.sol";
-import {BatchRollup} from "./rollup/BatchRollup.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "hardhat/console.sol";
+import {Sp1Rollup} from "./rollup/Sp1Rollup.sol";
 
 contract Bridge {
     uint256 public nonce;
@@ -77,9 +77,7 @@ contract Bridge {
         address payable _to,
         uint256 _value,
         uint256 _nonce,
-        bytes calldata _message,
-        bytes memory merkleProof,
-        uint256 proofIndex
+        bytes calldata _message
     ) external payable {
         bytes memory encodedMessage = _encodeMessage(
             _from,
@@ -94,19 +92,9 @@ contract Bridge {
             receivedMessage[messageHash] != MessageStatus.Success,
             "Message already received"
         );
-
-        require(BatchRollup(rollup).acceptedBatch(proofIndex));
-
-        bytes32 _messageRoot = BatchRollup(rollup).withdrawRoots(proofIndex);
-        require(
-            BatchRollup(rollup).verifyMerkleProof(
-                _messageRoot,
-                messageHash,
-                _nonce,
-                merkleProof
-            ),
-            "Invalid proof"
-        );
+        uint256 withdrawalBlockNumber = Sp1Rollup(rollup).withdrawalsAcceptedBlock(messageHash);
+        require(withdrawalBlockNumber != 0);
+        require(Sp1Rollup(rollup).approvedBlock(withdrawalBlockNumber));
 
         _receiveMessage(_from, _to, _value, _nonce, _message, messageHash);
     }

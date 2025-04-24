@@ -30,12 +30,21 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
     mapping(uint256 => bytes32) public acceptedBlockHash;
     mapping(uint256 => uint256) public acceptedTime;
     mapping(uint256 => bool)    public proofedBlock;
+    mapping(bytes32 => uint256) public withdrawalsAcceptedBlock;
 
     mapping(address => uint256) public challengerDeposit;
     mapping(uint256 => address) public blockChallenger;
     mapping(uint256 => uint256) public challengeDeadline;
 
     ISP1Verifier private verifier;
+
+    enum WithdrawalStatus { None, Pending, Completed, Failed }
+
+    struct WithdrawalEvent {
+        address bridge;
+        uint256[] topics;
+        bytes data;
+    }
 
     event UpdateVerifier(address oldVerifier, address newVerifier);
 
@@ -45,7 +54,8 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         uint256 _approveTimeout,
         address _verifier,
         bytes32 _programVKey,
-        bytes32 _genesisHash
+        bytes32 _genesisHash,
+        address _bridge
     ) Ownable(msg.sender) {
         challengeDepositAmount = _challengeDepositAmount;
         challengeTime = _challengeTime;
@@ -54,6 +64,7 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         daCheck = true;
         programVKey = _programVKey;
         genesisHash = _genesisHash;
+        bridge = _bridge;
     }
 
     function calculateBlobHash(
@@ -76,7 +87,8 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
     }
 
     function acceptNextBlock(
-        bytes calldata newBlockRlp
+        bytes calldata newBlockRlp,
+        bytes calldata withdrawalEvents
     ) external payable {
         RLPReader.RLPItem[] memory headerFields = newBlockRlp.toRlpItem().toList();
 
@@ -104,6 +116,17 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         require(!_rollupCorrupted(), "can't accept while rollup corrupted");
 
         bytes32 newBlockHash = keccak256(newBlockRlp);
+        bytes32 withdrawalsHash = keccak256(withdrawalEvents);
+        if (withdrawalEvents.length != 0) {
+            WithdrawalEvent[] memory withdrawalEvent = abi.decode(withdrawalEvents, (WithdrawalEvent[]));
+
+            for (uint256 i = 0; i < withdrawalEvent.length; i++) {
+                (address sender, address to, uint256 value, uint256 nonce, bytes32 msgHash, bytes memory innerData) =
+                                    abi.decode(withdrawalEvent[i].data, (address, address, uint256, uint256, bytes32, bytes));
+
+                withdrawalsAcceptedBlock[msgHash] = blockNumber;
+            }
+        }
 
         bytes32 requiredBlobHash;
 
@@ -138,24 +161,27 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
             challengeDeadline[challengeQueue[0]] < block.timestamp;
     }
 
-    function acceptedBlock(uint256 _batchIndex) external view returns (bool) {
-        return _acceptedBlock(_batchIndex);
+    function acceptedBlock(uint256 _blockNumber) external view returns (bool) {
+        return _acceptedBlock(_blockNumber);
     }
 
-    function _acceptedBlock(uint256 _batchIndex) internal view returns (bool) {
-        return _batchIndex <= lastBlockNumber;
+    function _acceptedBlock(uint256 _blockNumber) internal view returns (bool) {
+        return _blockNumber <= lastBlockNumber;
     }
 
-    function approvedBlock(uint256 _batchIndex) external view returns (bool) {
-        return _approvedBlock(_batchIndex);
+    function approvedBlock(uint256 _blockNumber) external view returns (bool) {
+        return _approvedBlock(_blockNumber);
     }
 
-    function _approvedBlock(uint256 _batchNumber) internal view returns (bool) {
-        uint256 blockAcceptTime = acceptedTime[_batchNumber];
+    function _approvedBlock(uint256 _blockNumber) internal view returns (bool) {
+        uint256 blockAcceptTime = acceptedTime[_blockNumber];
 
         return
-            _acceptedBlock(_batchNumber) &&
-            block.timestamp - blockAcceptTime > approveTimeout;
+            _acceptedBlock(_blockNumber) &&
+            (
+                block.timestamp - blockAcceptTime > approveTimeout ||
+                proofedBlock[_blockNumber]
+            );
     }
 
     function challengeBlock(uint256 _blockNumber) external payable {
