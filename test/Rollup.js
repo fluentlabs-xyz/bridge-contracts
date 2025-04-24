@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { sleep } = require("@nomicfoundation/hardhat-verify/internal/utilities");
 
-describe("Rollup", function () {
+describe("BatchRollup.sol", function () {
   let rollup;
 
   before(async function () {
@@ -10,7 +10,7 @@ describe("Rollup", function () {
 
     console.log("Verifier: ", verifier.target)
 
-    const RollupContract = await ethers.getContractFactory("Rollup");
+    const RollupContract = await ethers.getContractFactory("BatchRollup");
     rollup = await RollupContract.deploy(10000,0,1, verifier.target);
 
     await rollup.setDaCheck(false)

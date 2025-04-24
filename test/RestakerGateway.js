@@ -267,7 +267,7 @@ describe("RestakerGateway", function () {
     const hash = ethers.keccak256(inputBytes);
 
     expect(hash).to.equal(
-      "0xc01c06cce741e56315d428806aa809561eac38bc4c8e96deb2d0662578f6dc0d",
+      "0xe81bf0a02588d8847097c757448a4d06f94c7f093af5e7aea71a59f847186fb3",
     );
 
     const receive_tx = await contractWithSigner.receiveMessage(

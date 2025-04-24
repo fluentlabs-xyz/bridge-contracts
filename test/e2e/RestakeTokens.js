@@ -417,7 +417,7 @@ describe("Contract deployment and interaction", function () {
 
     let rollupAddress = "0x0000000000000000000000000000000000000000";
     if (withRollup) {
-      const rollupFactory = await ethers.getContractFactory("Rollup");
+      const rollupFactory = await ethers.getContractFactory("BatchRollup.so");
       rollupContract = await rollupFactory.connect(owner).deploy();
       rollupAddress = rollupContract.target;
       log("rollupAddress:", rollupAddress);

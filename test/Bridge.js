@@ -6,8 +6,8 @@ describe("Bridge", function () {
   let rollup;
 
   before(async function () {
-    const RollupContract = await ethers.getContractFactory("Rollup");
-    rollup = await RollupContract.deploy();
+    const RollupContract = await ethers.getContractFactory("BatchRollup");
+    rollup = await RollupContract.deploy(0,0,0,"0x0000000000000000000000000000000000000000");
 
     const BridgeContract = await ethers.getContractFactory("Bridge");
     const accounts = await hre.ethers.getSigners();

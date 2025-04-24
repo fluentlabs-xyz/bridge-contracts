@@ -102,7 +102,7 @@ describe("Send tokens test", () => {
 
     let rollupContractAddress = "0x0000000000000000000000000000000000000000";
     if (withRollup) {
-      const rollupFactory = await ethers.getContractFactory("Rollup");
+      const rollupFactory = await ethers.getContractFactory("BatchRollup.sol");
       log(`rollupContract started deploy`);
       rollupContract = await rollupFactory.connect(owner).deploy();
       rollupContractAddress = rollupContract.target;
