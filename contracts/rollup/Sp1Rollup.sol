@@ -16,18 +16,21 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
     bytes32 public programVKey;
     bytes32 public genesisHash;
 
-    uint256 public lastBlockNumber;
+    uint256 public lastBatchIndex;
     uint256 public approveTimeout;
     uint256 public challengeDepositAmount;
     uint256 public challengeTime;
     address public blobHashGetter;
+
+    uint256 public batchSize;
+    uint256 public blockAccepted;
 
     uint[] private challengeQueue;
     uint private challengeQueueStart;
 
     bool private daCheck;
 
-    mapping(uint256 => bytes32) public acceptedBlockHash;
+    mapping(uint256 => bytes32) public acceptedBatchHash;
     mapping(uint256 => uint256) public acceptedTime;
     mapping(uint256 => bool)    public proofedBlock;
     mapping(bytes32 => uint256) public withdrawalsAcceptedBlock;
@@ -35,6 +38,8 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
     mapping(address => uint256) public challengerDeposit;
     mapping(uint256 => address) public blockChallenger;
     mapping(uint256 => uint256) public challengeDeadline;
+
+    bytes32 public constant ZERO_BYTES_HASH = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
 
     ISP1Verifier private verifier;
 
@@ -44,6 +49,18 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         address bridge;
         uint256[] topics;
         bytes data;
+    }
+
+    struct BlockCommitment {
+        uint256 blockNumber;
+        bytes32 blockHash;
+        bytes32 withdrawalHash;
+        bytes32 depositHash;
+    }
+
+    struct DepositsInBlock {
+        uint256 blockNumber;
+        uint256 countDepositsInBlock;
     }
 
     event UpdateVerifier(address oldVerifier, address newVerifier);
@@ -86,52 +103,90 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         return 0;
     }
 
-    function acceptNextBlock(
-        bytes calldata newBlockRlp,
-        bytes calldata withdrawalEvents
-    ) external payable {
-        RLPReader.RLPItem[] memory headerFields = newBlockRlp.toRlpItem().toList();
+    function calculateBatchRoot(
+        BlockCommitment[] calldata commitmentBatch
+    ) public returns (bytes32) {
+        bytes memory leafs = new bytes(commitmentBatch.length * 32);
 
-        bytes32 parentHash = bytes32(headerFields[0].toBytes());
-        uint256 blockNumber = headerFields[8].toUint();
-        bytes32 transactionRoot = bytes32(headerFields[4].toBytes());
+        for(uint256 i = 0; i < commitmentBatch.length; ++i) {
+            bytes32 hash = keccak256(abi.encodePacked(
+                commitmentBatch[i].blockNumber,
+                commitmentBatch[i].blockHash,
+                commitmentBatch[i].withdrawalHash,
+                commitmentBatch[i].depositHash)
+            );
+            assembly {
+                mstore(add(add(leafs, 32), mul(i, 32)), hash)
+            }
+        }
+
+        return _calculateMerkleRoot(leafs);
+    }
+
+    function checkDeposit(
+        BlockCommitment calldata _commitmentBatch,
+        DepositsInBlock calldata depositInBlock
+    ) public returns (bool) {
+        bytes32[] memory depositIds = new bytes32[](depositInBlock.countDepositsInBlock);
+        for(uint256 i = 0; i < depositInBlock.countDepositsInBlock; ++i) {
+            bytes32 depositId = Bridge(bridge).sentMessageQueue().dequeue();
+            depositIds[i]= depositId;
+        }
+
+        return keccak256(abi.encodePacked(depositIds)) == _commitmentBatch.depositHash;
+    }
+
+    function calculateBlobHash() public returns (bytes32){
+        //TODO:
+        return 0;
+    }
+
+    function acceptNextBatch(
+        uint256 _batchIndex,
+        BlockCommitment[] calldata _commitmentBatch,
+        DepositsInBlock[] calldata depositsInBlocks
+    ) external payable {
+        require(!_rollupCorrupted(), "can't accept while rollup corrupted");
 
         require(
-            blockNumber == lastBlockNumber + 1,
+            _batchIndex == lastBatchIndex + 1 || _batchIndex == 0 && lastBatchIndex == 0,
+            "Wrong batch index"
+        );
+
+        require(
+            _batchIndex == lastBatchIndex + 1,
+            "Wrong batch index"
+        );
+
+        require(
+            _commitmentBatch.length == batchSize,
+            "Wrong batch size"
+        );
+
+        require(
+            _commitmentBatch[0].blockNumber == blockAccepted,
             "Wrong block number"
         );
 
-        if (blockNumber != 1) {
+        uint256 depositIndex = 0;
+        for(uint256 i = 0; i < batchSize - 1; ++i) {
             require(
-                parentHash == acceptedBlockHash[lastBlockNumber],
-                "Parent hash mismatch"
+                _commitmentBatch[i].blockNumber == _commitmentBatch[i].blockNumber + 1,
+                "Wrong block sequence"
             );
-        } else {
-            require(
-                parentHash == genesisHash,
-                "Parent hash mismatch with genesis hash"
-            );
-        }
-
-        require(!_rollupCorrupted(), "can't accept while rollup corrupted");
-
-        bytes32 newBlockHash = keccak256(newBlockRlp);
-        bytes32 withdrawalsHash = keccak256(withdrawalEvents);
-        if (withdrawalEvents.length != 0) {
-            WithdrawalEvent[] memory withdrawalEvent = abi.decode(withdrawalEvents, (WithdrawalEvent[]));
-
-            for (uint256 i = 0; i < withdrawalEvent.length; i++) {
-                (address sender, address to, uint256 value, uint256 nonce, bytes32 msgHash, bytes memory innerData) =
-                                    abi.decode(withdrawalEvent[i].data, (address, address, uint256, uint256, bytes32, bytes));
-
-                withdrawalsAcceptedBlock[msgHash] = blockNumber;
+            if (_commitmentBatch[i].depositHash != ZERO_BYTES_HASH) {
+                require(checkDeposit(_commitmentBatch[i], depositsInBlocks[depositIndex]), "Failed to check deposit");
+                depositIndex += 1;
             }
+        }
+        if (_commitmentBatch[batchSize - 1].depositHash != ZERO_BYTES_HASH) {
+            require(checkDeposit(_commitmentBatch[batchSize -1], depositsInBlocks[depositIndex]), "Failed to check deposit");
         }
 
         bytes32 requiredBlobHash;
 
         if (daCheck) {
-            requiredBlobHash = transactionRoot;
+            requiredBlobHash = calculateBlobHash();
             bytes32 submittedBlobHash = BlobHashGetter.getBlobHash(
                 blobHashGetter,
                 0
@@ -142,9 +197,11 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
             );
         }
 
-        lastBlockNumber = blockNumber;
-        acceptedBlockHash[blockNumber] = newBlockHash;
-        acceptedTime[blockNumber] = block.timestamp;
+        bytes32 batchRoot = calculateBatchRoot(_commitmentBatch);
+        acceptedBatchHash[_batchIndex] = batchRoot;
+        lastBatchIndex = _batchIndex;
+        blockAccepted += batchSize;
+        acceptedTime[_batchIndex] = block.timestamp;
     }
 
     function getChallengeQueue() public view returns (uint[] memory) {
@@ -166,7 +223,7 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
     }
 
     function _acceptedBlock(uint256 _blockNumber) internal view returns (bool) {
-        return _blockNumber <= lastBlockNumber;
+        return _blockNumber <= lastBatchIndex;
     }
 
     function approvedBlock(uint256 _blockNumber) external view returns (bool) {
@@ -207,7 +264,7 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         uint256 _blockNumber,
         bytes calldata _proof
     ) external {
-        bytes32 blockHash = acceptedBlockHash[_blockNumber];
+        bytes32 blockHash = acceptedBatchHash[_blockNumber];
 
         verifier.verifyProof(
             programVKey,
@@ -265,10 +322,70 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         }
     }
 
+    function _calculateMerkleRoot(
+        bytes memory _leafs
+    ) internal pure returns (bytes32) {
+        uint256 count = _leafs.length / 32;
+
+        require(count > 0, "empty leafs");
+
+        while (count > 0) {
+            bytes32 hash;
+            bytes32 left;
+            bytes32 right;
+            for (uint256 i = 0; i < count / 2; i++) {
+                assembly {
+                    left := mload(add(add(_leafs, 32), mul(mul(i, 2), 32)))
+                    right := mload(
+                        add(add(_leafs, 32), mul(add(mul(i, 2), 1), 32))
+                    )
+                }
+                hash = _efficientHash(left, right);
+                assembly {
+                    mstore(add(add(_leafs, 32), mul(i, 32)), hash)
+                }
+            }
+
+            if (count % 2 == 1 && count > 1) {
+                assembly {
+                    left := mload(add(add(_leafs, 32), mul(sub(count, 1), 32)))
+                }
+                hash = _efficientHash(left, bytes32(0));
+
+                assembly {
+                    mstore(
+                        add(add(_leafs, 32), mul(div(sub(count, 1), 2), 32)),
+                        hash
+                    )
+                }
+                count += 1;
+            }
+
+            count = count / 2;
+        }
+        bytes32 root;
+        assembly {
+            root := mload(add(_leafs, 32))
+        }
+
+        return root;
+    }
+
+    function _efficientHash(
+        bytes32 a,
+        bytes32 b
+    ) private pure returns (bytes32 value) {
+        assembly {
+            mstore(0x00, a)
+            mstore(0x20, b)
+            value := keccak256(0x00, 0x40)
+        }
+    }
+
     function forceRevertBlock(uint256 _revertedBlockNumber) external onlyOwner {
         require(_acceptedBlock(_revertedBlockNumber), "batch not accepted yet");
         require(_revertedBlockNumber != 0, "batch index can't be zero");
-        for (uint256 i = _revertedBlockNumber; i <= lastBlockNumber; i++) {
+        for (uint256 i = _revertedBlockNumber; i <= lastBatchIndex; i++) {
             for (
                 uint256 j = challengeQueueStart;
                 j < challengeQueue.length;
@@ -289,7 +406,7 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         }
         _cleanQueue();
 
-        lastBlockNumber = _revertedBlockNumber - 1;
+        lastBatchIndex = _revertedBlockNumber - 1;
     }
 
     function updateVerifier(address _newVerifier) external onlyOwner {

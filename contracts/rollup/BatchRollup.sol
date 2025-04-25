@@ -185,9 +185,9 @@ contract BatchRollup is Ownable, BlobHashGetterDeployer {
             assembly {
                 messageHash := mload(add(add(_leafs, 32), mul(i, 32)))
             }
-            if (!Bridge(bridge).sentMessage(messageHash)) {
-                return false;
-            }
+//            if (!Bridge(bridge).sentMessage(messageHash)) {
+//                return false;
+//            }
         }
 
         return true;

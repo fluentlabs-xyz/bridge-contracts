@@ -2,10 +2,11 @@
 
 pragma solidity ^0.8.0;
 
-import {IERC20Gateway} from "./interfaces/IERC20Gateway.sol";
+import "./libraries/Queue.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "hardhat/console.sol";
+import {IERC20Gateway} from "./interfaces/IERC20Gateway.sol";
 import {Sp1Rollup} from "./rollup/Sp1Rollup.sol";
 
 contract Bridge {
@@ -19,7 +20,9 @@ contract Bridge {
     }
 
     mapping(bytes32 => MessageStatus) public receivedMessage;
-    mapping(bytes32 => bool) public sentMessage;
+//    mapping(bytes32 => bool) public sentMessage;
+
+    Queue public sentMessageQueue;
     address public bridgeAuthority;
     address public rollup;
 
@@ -67,7 +70,8 @@ contract Bridge {
 
         bytes32 messageHash = keccak256(encodedMessage);
 
-        sentMessage[messageHash] = true;
+        sentMessageQueue.enqueue(messageHash);
+//        sentMessage[messageHash] = true;
 
         emit SentMessage(from, _to, value, messageNonce, messageHash, _message);
     }
