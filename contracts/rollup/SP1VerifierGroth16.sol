@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {ISP1Verifier, ISP1VerifierWithHash} from "../interfaces/ISP1Verifier.sol";
+import {IVerifier, ISP1VerifierWithHash} from "../interfaces/IVerifier.sol";
 import {Groth16Verifier} from "./Groth16Verifier.sol";
 
 /// @title SP1 Verifier

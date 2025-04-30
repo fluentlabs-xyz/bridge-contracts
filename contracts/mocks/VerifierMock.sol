@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "../interfaces/IRollupVerifier.sol";
+import "../interfaces/IVerifier.sol";
 
-contract VerifierMock is IRollupVerifier {
+contract VerifierMock is IVerifier {
     constructor() {}
 
-    function verifyAggregateProof(
-        uint256 batchIndex,
-        bytes calldata aggregationProof,
-        bytes32 publicInputHash
-    ) external view {}
+    function verifyProof(
+        bytes32 programVKey,
+        bytes calldata publicValues,
+        bytes calldata proofBytes
+    ) external view {
+
+    }
 }

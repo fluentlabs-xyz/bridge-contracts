@@ -3,11 +3,14 @@
 pragma solidity ^0.8.0;
 
 import "./libraries/Queue.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "./rollup/Rollup.sol";
 
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "hardhat/console.sol";
 import {IERC20Gateway} from "./interfaces/IERC20Gateway.sol";
-import {Sp1Rollup} from "./rollup/Sp1Rollup.sol";
+import {MerkleTree} from "./libraries/MerkleTree.sol";
+import {Merkle} from "./restaker/libraries/Merkle.sol";
+import {Rollup} from "./rollup/Rollup.sol";
 
 contract Bridge {
     uint256 public nonce;
@@ -20,7 +23,6 @@ contract Bridge {
     }
 
     mapping(bytes32 => MessageStatus) public receivedMessage;
-//    mapping(bytes32 => bool) public sentMessage;
 
     Queue public sentMessageQueue;
     address public bridgeAuthority;
@@ -50,6 +52,7 @@ contract Bridge {
     constructor(address _bridgeAuthority, address _rollup) {
         bridgeAuthority = _bridgeAuthority;
         rollup = _rollup;
+        sentMessageQueue = new Queue();
     }
 
     function sendMessage(
@@ -77,30 +80,82 @@ contract Bridge {
     }
 
     function receiveMessageWithProof(
+        uint256 _batchIndex,
+        Rollup.BlockCommitment calldata _commitmentBatch,
         address _from,
         address payable _to,
         uint256 _value,
         uint256 _nonce,
-        bytes calldata _message
+        bytes calldata _message,
+        uint256 _withdrawal_proof_nonce,
+        bytes memory _withdrawal_proof,
+        uint256 _block_proof_nonce,
+        bytes memory _block_proof
     ) external payable {
-        bytes memory encodedMessage = _encodeMessage(
+        require(Rollup(rollup).approvedBatch(_batchIndex));
+
+        bytes32 messageHash = keccak256(_encodeMessage(
             _from,
             _to,
             _value,
             _nonce,
             _message
-        );
-
-        bytes32 messageHash = keccak256(encodedMessage);
+        ));
+//        bytes32 batchHash = ;
         require(
-            receivedMessage[messageHash] != MessageStatus.Success,
+            receivedMessage[messageHash] == MessageStatus.None,
             "Message already received"
         );
-        uint256 withdrawalBlockNumber = Sp1Rollup(rollup).withdrawalsAcceptedBlock(messageHash);
-        require(withdrawalBlockNumber != 0);
-        require(Sp1Rollup(rollup).approvedBlock(withdrawalBlockNumber));
+
+        _verifyWithdrawal(
+            _batchIndex,
+            _commitmentBatch,
+            _withdrawal_proof_nonce,
+            _withdrawal_proof,
+            _block_proof_nonce,
+            _block_proof,
+            messageHash
+        );
+
+//        uint256 withdrawalBlockNumber = Rollup(rollup).withdrawalsAcceptedBlock(messageHash);
+//        require(withdrawalBlockNumber != 0);
 
         _receiveMessage(_from, _to, _value, _nonce, _message, messageHash);
+    }
+
+    function _verifyWithdrawal(
+        uint256 _batchIndex,
+        Rollup.BlockCommitment calldata _commitmentBatch,
+        uint256 _withdrawal_proof_nonce,
+        bytes memory _withdrawal_proof,
+        uint256 _block_proof_nonce,
+        bytes memory _block_proof,
+        bytes32 _messageHash
+    ) private {
+        require(MerkleTree.verifyMerkleProof(
+            Rollup(rollup).acceptedBatchHash(_batchIndex),
+            keccak256(abi.encodePacked(
+                _commitmentBatch.previousBlockHash,
+                _commitmentBatch.blockHash,
+                _commitmentBatch.withdrawalHash,
+                _commitmentBatch.depositHash)
+            ),
+            _block_proof_nonce,
+            _block_proof
+        ),
+            "Failed to check batch proof"
+        );
+
+        require(MerkleTree.verifyMerkleProof(
+            _commitmentBatch.withdrawalHash,
+            _messageHash,
+            _withdrawal_proof_nonce,
+            _withdrawal_proof
+        ),
+            "Failed to check withdrawal proof"
+        );
+
+
     }
 
     function receiveFailedMessage(
@@ -151,7 +206,7 @@ contract Bridge {
         bytes32 messageHash = keccak256(encodedMessage);
 
         require(
-            receivedMessage[messageHash] != MessageStatus.Success,
+            receivedMessage[messageHash] == MessageStatus.None,
             "Message already received"
         );
 

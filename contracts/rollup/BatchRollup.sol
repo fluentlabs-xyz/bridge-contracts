@@ -315,7 +315,7 @@ contract BatchRollup is Ownable, BlobHashGetterDeployer {
                 assembly {
                     left := mload(add(add(_leafs, 32), mul(sub(count, 1), 32)))
                 }
-                hash = _efficientHash(left, bytes32(0));
+                hash = _efficientHash(left, left);
 
                 assembly {
                     mstore(

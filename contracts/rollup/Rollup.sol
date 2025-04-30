@@ -1,29 +1,29 @@
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Bridge} from "../Bridge.sol";
-import {BatchHeaderCodec} from "../restaker/libraries/BatchHeaderCodec.sol";
-import "../interfaces/ISP1Verifier.sol";
+import "../interfaces/IRollupVerifier.sol";
+import "../interfaces/IVerifier.sol";
 import "../restaker/libraries/BlobHashGetter.sol";
 import "./RLPReader.sol";
+import {BatchHeaderCodec} from "../restaker/libraries/BatchHeaderCodec.sol";
+import {Bridge} from "../Bridge.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 pragma solidity ^0.8.0;
 
-contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
+contract Rollup is Ownable, BlobHashGetterDeployer {
     using RLPReader for bytes;
     using RLPReader for RLPReader.RLPItem;
 
     address public bridge;
 
     bytes32 public programVKey;
-    bytes32 public genesisHash;
 
-    uint256 public lastBatchIndex;
+    uint256 public nextBatchIndex;
     uint256 public approveTimeout;
     uint256 public challengeDepositAmount;
     uint256 public challengeTime;
     address public blobHashGetter;
 
     uint256 public batchSize;
-    uint256 public blockAccepted;
+    bytes32 public lastBlockHashAccepted;
 
     uint[] private challengeQueue;
     uint private challengeQueueStart;
@@ -32,16 +32,15 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
 
     mapping(uint256 => bytes32) public acceptedBatchHash;
     mapping(uint256 => uint256) public acceptedTime;
-    mapping(uint256 => bool)    public proofedBlock;
-    mapping(bytes32 => uint256) public withdrawalsAcceptedBlock;
+    mapping(uint256 => bool)    public proofedBatch;
 
     mapping(address => uint256) public challengerDeposit;
-    mapping(uint256 => address) public blockChallenger;
+    mapping(uint256 => address) public batchChallenger;
     mapping(uint256 => uint256) public challengeDeadline;
 
     bytes32 public constant ZERO_BYTES_HASH = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
 
-    ISP1Verifier private verifier;
+    IVerifier private verifier;
 
     enum WithdrawalStatus { None, Pending, Completed, Failed }
 
@@ -52,7 +51,7 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
     }
 
     struct BlockCommitment {
-        uint256 blockNumber;
+        bytes32 previousBlockHash;
         bytes32 blockHash;
         bytes32 withdrawalHash;
         bytes32 depositHash;
@@ -72,16 +71,18 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         address _verifier,
         bytes32 _programVKey,
         bytes32 _genesisHash,
-        address _bridge
+        address _bridge,
+        uint256 _batchSize
     ) Ownable(msg.sender) {
         challengeDepositAmount = _challengeDepositAmount;
         challengeTime = _challengeTime;
         approveTimeout = _approveTimeout;
-        verifier = ISP1Verifier(_verifier);
+        verifier = IVerifier(_verifier);
         daCheck = true;
         programVKey = _programVKey;
-        genesisHash = _genesisHash;
+        lastBlockHashAccepted = _genesisHash;
         bridge = _bridge;
+        batchSize = _batchSize;
     }
 
     function calculateBlobHash(
@@ -99,10 +100,6 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         daCheck = isCheck;
     }
 
-    function getBlockNumber(bytes memory _blockHeader) internal returns(uint256) {
-        return 0;
-    }
-
     function calculateBatchRoot(
         BlockCommitment[] calldata commitmentBatch
     ) public returns (bytes32) {
@@ -110,7 +107,7 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
 
         for(uint256 i = 0; i < commitmentBatch.length; ++i) {
             bytes32 hash = keccak256(abi.encodePacked(
-                commitmentBatch[i].blockNumber,
+                commitmentBatch[i].previousBlockHash,
                 commitmentBatch[i].blockHash,
                 commitmentBatch[i].withdrawalHash,
                 commitmentBatch[i].depositHash)
@@ -149,12 +146,7 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         require(!_rollupCorrupted(), "can't accept while rollup corrupted");
 
         require(
-            _batchIndex == lastBatchIndex + 1 || _batchIndex == 0 && lastBatchIndex == 0,
-            "Wrong batch index"
-        );
-
-        require(
-            _batchIndex == lastBatchIndex + 1,
+            _batchIndex == nextBatchIndex,
             "Wrong batch index"
         );
 
@@ -164,14 +156,14 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         );
 
         require(
-            _commitmentBatch[0].blockNumber == blockAccepted,
+            _commitmentBatch[0].previousBlockHash == lastBlockHashAccepted,
             "Wrong block number"
         );
 
         uint256 depositIndex = 0;
         for(uint256 i = 0; i < batchSize - 1; ++i) {
             require(
-                _commitmentBatch[i].blockNumber == _commitmentBatch[i].blockNumber + 1,
+                _commitmentBatch[i].blockHash == _commitmentBatch[i + 1].previousBlockHash,
                 "Wrong block sequence"
             );
             if (_commitmentBatch[i].depositHash != ZERO_BYTES_HASH) {
@@ -199,8 +191,8 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
 
         bytes32 batchRoot = calculateBatchRoot(_commitmentBatch);
         acceptedBatchHash[_batchIndex] = batchRoot;
-        lastBatchIndex = _batchIndex;
-        blockAccepted += batchSize;
+        nextBatchIndex = _batchIndex + 1;
+        lastBlockHashAccepted = _commitmentBatch[batchSize - 1].blockHash;
         acceptedTime[_batchIndex] = block.timestamp;
     }
 
@@ -218,34 +210,34 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
             challengeDeadline[challengeQueue[0]] < block.timestamp;
     }
 
-    function acceptedBlock(uint256 _blockNumber) external view returns (bool) {
-        return _acceptedBlock(_blockNumber);
+    function acceptedBatch(uint256 _batchIndex) external view returns (bool) {
+        return _acceptedBatch(_batchIndex);
     }
 
-    function _acceptedBlock(uint256 _blockNumber) internal view returns (bool) {
-        return _blockNumber <= lastBatchIndex;
+    function _acceptedBatch(uint256 _batchIndex) internal view returns (bool) {
+        return _batchIndex <= nextBatchIndex;
     }
 
-    function approvedBlock(uint256 _blockNumber) external view returns (bool) {
-        return _approvedBlock(_blockNumber);
+    function approvedBatch(uint256 _batchIndex) external view returns (bool) {
+        return _approvedBatch(_batchIndex);
     }
 
-    function _approvedBlock(uint256 _blockNumber) internal view returns (bool) {
-        uint256 blockAcceptTime = acceptedTime[_blockNumber];
+    function _approvedBatch(uint256 _batchIndex) internal view returns (bool) {
+        uint256 blockAcceptTime = acceptedTime[_batchIndex];
 
         return
-            _acceptedBlock(_blockNumber) &&
+            _acceptedBatch(_batchIndex) &&
             (
                 block.timestamp - blockAcceptTime > approveTimeout ||
-                proofedBlock[_blockNumber]
+                proofedBatch[_batchIndex]
             );
     }
 
-    function challengeBlock(uint256 _blockNumber) external payable {
-        require(!_approvedBlock(_blockNumber), "batch already approved");
-        require(!proofedBlock[_blockNumber], "batch already proofed");
+    function challengeBatch(uint256 _batchIndex) external payable {
+        require(!_approvedBatch(_batchIndex), "batch already approved");
+        require(!proofedBatch[_batchIndex], "batch already proofed");
         require(
-            blockChallenger[_blockNumber] == address(0),
+            batchChallenger[_batchIndex] == address(0),
             "batch already challenged"
         );
 
@@ -255,16 +247,16 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         );
 
         challengerDeposit[msg.sender] += msg.value;
-        blockChallenger[_blockNumber] = msg.sender;
-        challengeDeadline[_blockNumber] = block.timestamp + challengeTime;
-        challengeQueue.push(_blockNumber);
+        batchChallenger[_batchIndex] = msg.sender;
+        challengeDeadline[_batchIndex] = block.timestamp + challengeTime;
+        challengeQueue.push(_batchIndex);
     }
 
-    function proofBlock(
-        uint256 _blockNumber,
+    function proofBatch(
+        uint256 _batchIndex,
         bytes calldata _proof
     ) external {
-        bytes32 blockHash = acceptedBatchHash[_blockNumber];
+        bytes32 blockHash = acceptedBatchHash[_batchIndex];
 
         verifier.verifyProof(
             programVKey,
@@ -272,15 +264,15 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
             _proof
         );
 
-        proofedBlock[_blockNumber] = true;
-        address challenger = blockChallenger[_blockNumber];
+        proofedBatch[_batchIndex] = true;
+        address challenger = batchChallenger[_batchIndex];
 
         if (challenger != address(0)) {
-            blockChallenger[_blockNumber] = address(0);
+            batchChallenger[_batchIndex] = address(0);
             challengerDeposit[challenger] -= challengeDepositAmount;
 
             for (uint256 i = 0; i < challengeQueue.length; i++) {
-                if (challengeQueue[i] == _blockNumber) {
+                if (challengeQueue[i] == _batchIndex) {
                     delete challengeQueue[i];
                     _resolveChallenge(i);
                 }
@@ -350,7 +342,7 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
                 assembly {
                     left := mload(add(add(_leafs, 32), mul(sub(count, 1), 32)))
                 }
-                hash = _efficientHash(left, bytes32(0));
+                hash = _efficientHash(left, left);
 
                 assembly {
                     mstore(
@@ -382,10 +374,10 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         }
     }
 
-    function forceRevertBlock(uint256 _revertedBlockNumber) external onlyOwner {
-        require(_acceptedBlock(_revertedBlockNumber), "batch not accepted yet");
-        require(_revertedBlockNumber != 0, "batch index can't be zero");
-        for (uint256 i = _revertedBlockNumber; i <= lastBatchIndex; i++) {
+    function forceRevertBatch(uint256 _revertedBatchIndex) external onlyOwner {
+        require(_acceptedBatch(_revertedBatchIndex), "batch not accepted yet");
+        require(_revertedBatchIndex != 0, "batch index can't be zero");
+        for (uint256 i = _revertedBatchIndex; i <= nextBatchIndex; i++) {
             for (
                 uint256 j = challengeQueueStart;
                 j < challengeQueue.length;
@@ -395,9 +387,9 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
                     delete challengeQueue[j];
                 }
             }
-            address challenger = blockChallenger[i];
+            address challenger = batchChallenger[i];
             if (challenger != address(0)) {
-                blockChallenger[i] = address(0);
+                batchChallenger[i] = address(0);
                 challengerDeposit[challenger] -= challengeDepositAmount;
                 (bool success, ) = challenger.call{value: challengeDepositAmount}("");
                 require(success, "ETH transfer failed");
@@ -406,12 +398,12 @@ contract Sp1Rollup is Ownable, BlobHashGetterDeployer {
         }
         _cleanQueue();
 
-        lastBatchIndex = _revertedBlockNumber - 1;
+        nextBatchIndex = _revertedBatchIndex - 1;
     }
 
     function updateVerifier(address _newVerifier) external onlyOwner {
         address _oldVerifier = address(verifier);
-        verifier = ISP1Verifier(_newVerifier);
+        verifier = IVerifier(_newVerifier);
 
         emit UpdateVerifier(_oldVerifier, _newVerifier);
     }

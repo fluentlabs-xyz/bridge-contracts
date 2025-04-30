@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 /// @title SP1 Verifier Interface
 /// @author Succinct Labs
 /// @notice This contract is the interface for the SP1 Verifier.
-interface ISP1Verifier {
+interface IVerifier {
     /// @notice Verifies a proof with given public values and vkey.
     /// @dev It is expected that the first 4 bytes of proofBytes must match the first 4 bytes of
     /// target rollup's VERIFIER_HASH.
@@ -18,7 +18,7 @@ interface ISP1Verifier {
     ) external view;
 }
 
-interface ISP1VerifierWithHash is ISP1Verifier {
+interface ISP1VerifierWithHash is IVerifier {
     /// @notice Returns the hash of the rollup.
     function VERIFIER_HASH() external pure returns (bytes32);
 }
