@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { AbiCoder, BigNumber } = require("ethers");
 const { address } = require("hardhat/internal/core/config/config-validation");
 
-describe("Bridge", function () {
+describe("ERC20Gateway", function () {
   let bridge;
   let erc20Gateway;
   let erc20GatewayAbi;
@@ -140,16 +140,12 @@ describe("Bridge", function () {
     const data = AbiCoder.defaultAbiCoder()
       .encode(
         ["address", "address", "uint256", "uint256", "bytes"],
-        [erc20Gateway.target, accounts[3].address, 0, 0, _message],
+        ["0x1111111111111111111111111111111111111111", erc20Gateway.target, 0, 0, _message],
       )
       .slice(2);
 
     const inputBytes = Buffer.from(data, "hex");
     const hash = ethers.keccak256(inputBytes);
-
-    expect(hash).to.equal(
-      "0xece47fe60704fad6f857c8f1aaa2ff9dec7d886b6171252458f06bf5ee7ea699",
-    );
 
     const receive_tx = await contractWithSigner.receiveMessage(
       "0x1111111111111111111111111111111111111111",
@@ -174,7 +170,7 @@ describe("Bridge", function () {
 
     expect(events.length).to.equal(1);
     expect(events[0].args.messageHash).to.equal(
-      "0x6451ff2a61f674a843f3db146d0fe0e8f0b5ba4c8288dd23c32d1e4dcc83d812",
+        hash,
     );
     expect(events[0].args.successfulCall).to.equal(true);
 
@@ -207,7 +203,7 @@ describe("Bridge", function () {
     } catch (error) {
       expect(error.toString()).to.equal(
         "Error: VM Exception while processing transaction: " +
-          "reverted with reason string 'Message already received'",
+          "reverted with reason string 'message received out of turn'",
       );
     }
   });
