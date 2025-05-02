@@ -55,6 +55,11 @@ contract Bridge {
         sentMessageQueue = new Queue();
     }
 
+    function getQueueSize() external view returns (uint256) {
+        return sentMessageQueue.size();
+    }
+
+
     function sendMessage(
         address _to,
         bytes calldata _message
@@ -92,6 +97,11 @@ contract Bridge {
         uint256 _block_proof_nonce,
         bytes memory _block_proof
     ) external payable {
+        require(
+            _nonce == _takeNextReceivedNonce(),
+            "message received out of turn"
+        );
+
         require(Rollup(rollup).approvedBatch(_batchIndex));
 
         bytes32 messageHash = keccak256(_encodeMessage(

@@ -6,7 +6,7 @@ describe("Rollup.sol", function () {
   let rollup;
 
   before(async function () {
-    const Verifier = await ethers.getContractFactory("SP1Verifier");
+    const Verifier = await ethers.getContractFactory("VerifierMock");
     let verifier = await Verifier.deploy();
 
     console.log("Verifier: ", verifier.target)
@@ -25,8 +25,8 @@ describe("Rollup.sol", function () {
 
     let batchIndex = await rollupContractWithSigner.nextBatchIndex();
 
-    expect(await rollupContractWithSigner.acceptedBatch(batchIndex + 1n)).to.eq(false);
-    expect(await rollupContractWithSigner.approvedBatch(batchIndex + 1n)).to.eq(false);
+    expect(await rollupContractWithSigner.acceptedBatch(batchIndex)).to.eq(false);
+    expect(await rollupContractWithSigner.approvedBatch(batchIndex)).to.eq(false);
 
     const commitmentBatch = [
       {
@@ -43,16 +43,7 @@ describe("Rollup.sol", function () {
       }
     ];
 
-    const depositsInBlocks = [
-      {
-        blockNumber: 100,
-        countDepositsInBlock: 5
-      },
-      {
-        blockNumber: 101,
-        countDepositsInBlock: 7
-      }
-    ];
+    const depositsInBlocks = [];
 
     await rollupContractWithSigner.acceptNextBatch(
         batchIndex,
@@ -62,7 +53,7 @@ describe("Rollup.sol", function () {
 
     let newBatchIndex = await rollupContractWithSigner.nextBatchIndex();
     expect(newBatchIndex).to.eq(batchIndex + 1n);
-    expect(await rollupContractWithSigner.acceptedBatch(newBatchIndex)).to.eq(true);
+    expect(await rollupContractWithSigner.acceptedBatch(batchIndex)).to.eq(true);
   });
 
 
@@ -70,31 +61,47 @@ describe("Rollup.sol", function () {
     const accounts = await hre.ethers.getSigners();
     const rollupContractWithSigner = rollup.connect(accounts[0]);
 
-    let rlpBlockHeader = "0xf90272a0a45355df8214ba09ce650b746bd61f4d3f926d2ed4c75c42f55aedf9a92acfe0a01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d493479492e9662b18556a98ecc21a5b6e54a8d2fb87492aa013d2fa224245679681323f795c9613f004c6dbf026c9addbd3e9a0ef7f131bd8a044382acb21be55afa053e406c3e9d57ed56e971b0abe3eb07113f77b7d30e515a0f78dfb743fbd92ade140711c8bbc542b5e307f0ab7984eff35d751969fe57efab901000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080028401caa87b8252088467f37d6791726574682f76312e322e302f6c696e7578a007ea846ae8548f7abe5a19ffa002f48ce1ab1e0cbfbb54e11a3bbf929b985859880000000000000000842da4d838a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b4218080a0460883d27fd0a7f0a9ea2870f7ea20ac5dfcc0dd0ba81dd12ff3c00f97332442a0e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    let batchIndex = await rollupContractWithSigner.nextBatchIndex();
+
+    const commitmentBatch = [
+      {
+        previousBlockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        blockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        withdrawalHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        depositHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      },
+      {
+        previousBlockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        blockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        withdrawalHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        depositHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      }
+    ];
 
     await rollupContractWithSigner.acceptNextBatch(
-        rlpBlockHeader,
-        "0x"
+        batchIndex,
+        commitmentBatch,
+        []
     );
 
     await sleep(2000)
-    let newblockNumber = await rollupContractWithSigner.lastBlockNumber();
+    let nextBatchIndex = await rollupContractWithSigner.nextBatchIndex();
 
-    rlpBlockHeader = "0xf90272a01aae15e5cc07fc4b20f5d6609767678b45b367d3516d2359744bc7da8fb29db8a01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d4934794b3467107a50ed758f0c5da505f54d30417e1fe00a023deee2ecce08f2a9f2511c9193828ac2efe3176ab0d3114611397e77e787ac8a009422c4938d234e917454a7a03371cd7f35a48681d7906f34a4c26beb9d7fc15a0f78dfb743fbd92ade140711c8bbc542b5e307f0ab7984eff35d751969fe57efab901000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080038401cb1b248252088467f37d9791726574682f76312e322e302f6c696e7578a01bb151602680a311deb5a89fac1243e7bb0f1bd568d5f6758a5c5834b5cdbf628800000000000000008427f247a7a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b4218080a0ee18a678daa65670a7b2dce25a1542686a65a2fda14233efda7ad12bbbc8a92ca0e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
     await rollupContractWithSigner.acceptNextBatch(
-        rlpBlockHeader,
-        "0x"
+        nextBatchIndex,
+        commitmentBatch,
+        []
     );
 
-    expect(await rollupContractWithSigner.approvedBatch(1)).to.eq(true);
+    expect(await rollupContractWithSigner.approvedBatch(batchIndex)).to.eq(true);
 
     let challenge = await rollupContractWithSigner.getChallengeQueue();
 
     let challengeLen = challenge.length
 
-    await rollupContractWithSigner.challengeBlock(
-        newblockNumber + 1n, {
+    await rollupContractWithSigner.challengeBatch(
+        nextBatchIndex, {
           value: 10000
         }
     );
@@ -102,7 +109,7 @@ describe("Rollup.sol", function () {
     challenge = await rollupContractWithSigner.getChallengeQueue();
     expect(challenge.length).to.eq(1);
 
-    await rollupContractWithSigner.proofBlock(newblockNumber + 1n, "0x11b6a09d2c70b2e4fb214226fd0106a590dca00c2a0ec62e34e7ffdd11c788703fc26d61035980a75458baf4393fdf65478f94d960953de6fd03f31fc868c8c93087c8662e985b53c4ac8502c1f917bb20968844d0d55eda08ed5d6144b4e5feaa8e444d103a3f3230489985fa76eb73f89fef51d2f7c5e0c184be7ab74f1c9640e6651618f259ab8d0616b26ff75ccfea92f789502b89892a6fb67ec47932f8f575d2a912ea41c5f75e0440efce92e9dc9cc43647989cd570404e88f757318e2ae5696a24cf008895debedf7735532ecaae629ff1a636493476f0cdf8aa7e05f4b792a7180e9a7f185b545461e083e9997b0a8fe3e1fe85cda87da247a07edc043c4a6e");
+    await rollupContractWithSigner.proofBatch(nextBatchIndex, "0x11b6a09d2c70b2e4fb214226fd0106a590dca00c2a0ec62e34e7ffdd11c788703fc26d61035980a75458baf4393fdf65478f94d960953de6fd03f31fc868c8c93087c8662e985b53c4ac8502c1f917bb20968844d0d55eda08ed5d6144b4e5feaa8e444d103a3f3230489985fa76eb73f89fef51d2f7c5e0c184be7ab74f1c9640e6651618f259ab8d0616b26ff75ccfea92f789502b89892a6fb67ec47932f8f575d2a912ea41c5f75e0440efce92e9dc9cc43647989cd570404e88f757318e2ae5696a24cf008895debedf7735532ecaae629ff1a636493476f0cdf8aa7e05f4b792a7180e9a7f185b545461e083e9997b0a8fe3e1fe85cda87da247a07edc043c4a6e");
 
     challenge = await rollupContractWithSigner.getChallengeQueue()
 
@@ -113,17 +120,33 @@ describe("Rollup.sol", function () {
     const accounts = await hre.ethers.getSigners();
     const rollupContractWithSigner = rollup.connect(accounts[0]);
 
-    let newblockNumber = await rollupContractWithSigner.lastBlockNumber();
-    console.log("Revert: ", newblockNumber);
+    const commitmentBatch = [
+      {
+        previousBlockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        blockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        withdrawalHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        depositHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      },
+      {
+        previousBlockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        blockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        withdrawalHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        depositHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      }
+    ];
+
+    let nextBatchIndex = await rollupContractWithSigner.nextBatchIndex();
+    console.log("Revert: ", nextBatchIndex);
     await rollupContractWithSigner.acceptNextBatch(
-        "0xf90272a08688ce054c205a697f248c50c007ef1068d5de74a96326e59d02eed22773fc96a01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347949a9bd43e6aa1568f22bbcc3ed623b185b183790da07288496e384be0dd27580db9cbfac1ffca722ebe7835710b89a658dc19e86453a06caa61cee56f6310fc8c510461628b0a80bd43ebfaa477e07c5758da25446b07a0f78dfb743fbd92ade140711c8bbc542b5e307f0ab7984eff35d751969fe57efab901000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080048401cb8de98252088467f3861e91726574682f76312e322e302f6c696e7578a0ded0b3ae0f545008424ae4d530cbdf8ee47f7c9210a19136143d4c9bbd60b3a38800000000000000008422f5c77fa056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b4218080a0b0c3903599d6fe12993ec1b5abe0ba7decf058db33ff94266562f39f91f9e873a0e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "0x"
+        nextBatchIndex,
+        commitmentBatch,
+        []
     );
 
     expect(await rollupContractWithSigner.approvedBatch(1)).to.eq(true);
 
-    await rollupContractWithSigner.challengeBlock(
-        newblockNumber + 1n, {
+    await rollupContractWithSigner.challengeBatch(
+        nextBatchIndex, {
           value: 10000
         }
     );
@@ -141,7 +164,7 @@ describe("Rollup.sol", function () {
 
     expect(await rollupContractWithSigner.rollupCorrupted()).to.eq(true);
 
-    await rollupContractWithSigner.forceRevertBlock(newblockNumber + 1n)
+    await rollupContractWithSigner.forceRevertBatch(nextBatchIndex)
 
     expect(await rollupContractWithSigner.rollupCorrupted()).to.eq(false);
   });
@@ -150,17 +173,34 @@ describe("Rollup.sol", function () {
     const accounts = await hre.ethers.getSigners();
     const rollupContractWithSigner = rollup.connect(accounts[0]);
 
-    let newblockNumber = await rollupContractWithSigner.lastBlockNumber();
-    console.log("corrupt: ", newblockNumber);
+    let nextBatchIndex = await rollupContractWithSigner.nextBatchIndex();
+    console.log("corrupt: ", nextBatchIndex);
+
+    const commitmentBatch = [
+      {
+        previousBlockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        blockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        withdrawalHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        depositHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      },
+      {
+        previousBlockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        blockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        withdrawalHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        depositHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      }
+    ];
+
     await rollupContractWithSigner.acceptNextBatch(
-        "0xf90272a08688ce054c205a697f248c50c007ef1068d5de74a96326e59d02eed22773fc96a01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347949a9bd43e6aa1568f22bbcc3ed623b185b183790da07288496e384be0dd27580db9cbfac1ffca722ebe7835710b89a658dc19e86453a06caa61cee56f6310fc8c510461628b0a80bd43ebfaa477e07c5758da25446b07a0f78dfb743fbd92ade140711c8bbc542b5e307f0ab7984eff35d751969fe57efab901000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080048401cb8de98252088467f3861e91726574682f76312e322e302f6c696e7578a0ded0b3ae0f545008424ae4d530cbdf8ee47f7c9210a19136143d4c9bbd60b3a38800000000000000008422f5c77fa056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b4218080a0b0c3903599d6fe12993ec1b5abe0ba7decf058db33ff94266562f39f91f9e873a0e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "0x"
+        nextBatchIndex,
+        commitmentBatch,
+        []
     );
 
     expect(await rollupContractWithSigner.approvedBatch(1)).to.eq(true);
 
-    await rollupContractWithSigner.challengeBlock(
-        newblockNumber + 1n, {
+    await rollupContractWithSigner.challengeBatch(
+        nextBatchIndex, {
           value: 10000
         }
     );

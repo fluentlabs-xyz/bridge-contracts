@@ -58,7 +58,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     }
 
     struct DepositsInBlock {
-        uint256 blockNumber;
+        bytes32 blochHash;
         uint256 countDepositsInBlock;
     }
 
@@ -100,6 +100,10 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         daCheck = isCheck;
     }
 
+    function setBridge(address _bridge) external payable onlyOwner {
+        bridge = _bridge;
+    }
+
     function calculateBatchRoot(
         BlockCommitment[] calldata commitmentBatch
     ) public returns (bytes32) {
@@ -124,6 +128,8 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         BlockCommitment calldata _commitmentBatch,
         DepositsInBlock calldata depositInBlock
     ) public returns (bool) {
+        require(_commitmentBatch.blockHash == depositInBlock.blochHash, "wrong deposits in block");
+
         bytes32[] memory depositIds = new bytes32[](depositInBlock.countDepositsInBlock);
         for(uint256 i = 0; i < depositInBlock.countDepositsInBlock; ++i) {
             bytes32 depositId = Bridge(bridge).sentMessageQueue().dequeue();
@@ -215,7 +221,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     }
 
     function _acceptedBatch(uint256 _batchIndex) internal view returns (bool) {
-        return _batchIndex <= nextBatchIndex;
+        return _batchIndex < nextBatchIndex;
     }
 
     function approvedBatch(uint256 _batchIndex) external view returns (bool) {
@@ -234,6 +240,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     }
 
     function challengeBatch(uint256 _batchIndex) external payable {
+        require(_acceptedBatch(_batchIndex), "batch is not accepted");
         require(!_approvedBatch(_batchIndex), "batch already approved");
         require(!proofedBatch[_batchIndex], "batch already proofed");
         require(
@@ -377,7 +384,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     function forceRevertBatch(uint256 _revertedBatchIndex) external onlyOwner {
         require(_acceptedBatch(_revertedBatchIndex), "batch not accepted yet");
         require(_revertedBatchIndex != 0, "batch index can't be zero");
-        for (uint256 i = _revertedBatchIndex; i <= nextBatchIndex; i++) {
+        for (uint256 i = _revertedBatchIndex; i < nextBatchIndex; i++) {
             for (
                 uint256 j = challengeQueueStart;
                 j < challengeQueue.length;
@@ -398,7 +405,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         }
         _cleanQueue();
 
-        nextBatchIndex = _revertedBatchIndex - 1;
+        nextBatchIndex = _revertedBatchIndex;
     }
 
     function updateVerifier(address _newVerifier) external onlyOwner {
