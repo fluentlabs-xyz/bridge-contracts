@@ -24,6 +24,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
 
     uint256 public batchSize;
     bytes32 public lastBlockHashAccepted;
+    uint256 public lastDepositAcceptedTime;
 
     uint[] private challengeQueue;
     uint private challengeQueueStart;
@@ -38,6 +39,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     mapping(uint256 => address) public batchChallenger;
     mapping(uint256 => uint256) public challengeDeadline;
 
+    uint256 public constant ACCEPT_DEPOSIT_DEADLINE = 24 * 60 * 60;
     bytes32 public constant ZERO_BYTES_HASH = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
 
     IVerifier private verifier;
@@ -167,6 +169,9 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         );
 
         uint256 depositIndex = 0;
+
+        uint256 queueSize = Bridge(bridge).getQueueSize();
+
         for(uint256 i = 0; i < batchSize - 1; ++i) {
             require(
                 _commitmentBatch[i].blockHash == _commitmentBatch[i + 1].previousBlockHash,
@@ -179,6 +184,14 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         }
         if (_commitmentBatch[batchSize - 1].depositHash != ZERO_BYTES_HASH) {
             require(checkDeposit(_commitmentBatch[batchSize -1], depositsInBlocks[depositIndex]), "Failed to check deposit");
+        }
+
+        if (Bridge(bridge).getQueueSize() == 0) {
+            lastDepositAcceptedTime = 0;
+        } else if (queueSize > Bridge(bridge).getQueueSize() || queueSize != 0 && lastDepositAcceptedTime == 0){
+            lastDepositAcceptedTime = block.timestamp;
+        } else if (lastDepositAcceptedTime + ACCEPT_DEPOSIT_DEADLINE < block.timestamp ) {
+            revert("deadline is overdue. Batch have to contains deposits");
         }
 
         bytes32 requiredBlobHash;
