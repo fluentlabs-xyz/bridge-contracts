@@ -17,8 +17,8 @@ const peggedTokenModule = buildModule("peggedToken", (m) => {
     return {peggedToken}
 });
 
-const rollupModule = buildModule("Rollup", (m) => {
-	const rollup = m.contract("Rollup", [])
+const rollupModule = buildModule("BatchRollup", (m) => {
+	const rollup = m.contract("BatchRollup", [0,0,0,"0x0000000000000000000000000000000000000000"])
 
 	return {rollup};
 });
@@ -34,6 +34,7 @@ const bridgeModule = buildModule("Bridge", (m) => {
 	return {bridge}
 });
 const tokenFactoryModule = buildModule("ERC20TokenFactory", (m) => {
+
     const {peggedToken} = m.useModule(peggedTokenModule)
 
 	const tokenFactory = m.contract("ERC20TokenFactory", [peggedToken])
@@ -68,4 +69,5 @@ module.exports = buildModule("L1Bridge", (m) => {
     const {erc20Gateway} = m.useModule(erc20GatewayModule)
 
     return { bridge, erc20Gateway, mockToken, rollup, peggedToken, tokenFactory };
+
 });

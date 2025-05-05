@@ -24,6 +24,8 @@ const liquidityTokenModule = buildModule("LiquidityToken", (m) => {
 
 	const liquidityToken= m.contract("LiquidityToken", [protocolConfig, 'Liquidity Token', 'lETH',])
 
+    const {ratioFeed} = m.useModule(ratioFeedModule);
+
     m.call(ratioFeed, "updateRatio", [liquidityToken, "1000000000000000000"])
 
     m.call(protocolConfig, "setLiquidityToken", [liquidityToken]);
@@ -50,12 +52,12 @@ const feeCollectorModule = buildModule("FeeCollector", (m) => {
 	return {feeCollector}
 });
 
-const peggedTokenModule = buildModule("ERC20PeggedToken", (m) => {
+const peggedTokenModule = buildModule("ERC20RestakingPeggedToken", (m) => {
 	const peggedToken= m.contract("ERC20PeggedToken", [])
 	return {peggedToken}
 });
 
-const tokenFactoryModule = buildModule("ERC20TokenFactory", (m) => {
+const tokenFactoryModule = buildModule("ERC20RestakingTokenFactory", (m) => {
     const {peggedToken} = m.useModule(peggedTokenModule);
 
 	const tokenFactory= m.contract("ERC20TokenFactory", [peggedToken])
