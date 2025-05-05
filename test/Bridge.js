@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { BigNumber, AbiCoder} = require("ethers");
+const {network} = require("hardhat");
 
 describe("Bridge", function () {
   let bridge;
@@ -60,6 +61,49 @@ describe("Bridge", function () {
     expect(bridge_balance - origin_bridge_balance).to.be.eql(
       2000n,
     );
+
+    try {
+      const commitmentBatch = [
+        {
+          previousBlockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+          blockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+          withdrawalHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+          depositHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        },
+        {
+          previousBlockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+          blockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+          withdrawalHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+          depositHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        },
+      ];
+
+      const rollupContractWithSigner = rollup.connect(accounts[0]);
+      let nextBatchIndex = await rollupContractWithSigner.nextBatchIndex();
+      await rollupContractWithSigner.acceptNextBatch(
+          nextBatchIndex,
+          commitmentBatch,
+          [],
+      );
+
+      const secondsToAdvance = 86400 * 2; // 2 day
+
+      await network.provider.send("evm_increaseTime", [secondsToAdvance]);
+      await network.provider.send("evm_mine");
+
+      nextBatchIndex = await rollupContractWithSigner.nextBatchIndex();
+      await rollupContractWithSigner.acceptNextBatch(
+          nextBatchIndex,
+          commitmentBatch,
+          [],
+      );
+
+    } catch(error) {
+      expect(error.toString()).to.equal(
+          "Error: VM Exception while processing transaction: " +
+          "reverted with reason string 'deadline is overdue. Batch have to contains deposits'",
+      );
+    }
 
     const commitmentBatch = [
       {
@@ -127,6 +171,7 @@ describe("Bridge", function () {
       receive_tx.blockNumber,
     );
 
+    console.log("With event: ", events);
     expect(events.length).to.equal(1);
     expect(events[0].args.messageHash).to.equal(
       "0x5e6af7e11771fafdbeba41d9781ea9a8fcdac0a801b5df4deebde301997fc061",
@@ -181,9 +226,24 @@ describe("Bridge", function () {
         )
     );
 
-    const withdrawalRoot = ethers.keccak256(
-        AbiCoder.defaultAbiCoder().encode(["bytes32", "bytes32"], [messageHash, messageHash])
+    let messageHash2 = hre.ethers.keccak256(
+        AbiCoder.defaultAbiCoder().encode(
+            ["address", "address", "uint256", "uint256", "bytes"],
+            [
+              "0x1111111111111111111111111111111111111111",
+              receiverAddress,
+              200,
+              nonce + 1n,
+              "0x"
+            ]
+        )
     );
+
+
+    const withdrawalRoot = ethers.keccak256(
+        AbiCoder.defaultAbiCoder().encode(["bytes32", "bytes32"], [messageHash, messageHash2])
+    );
+    console.log("mess ", messageHash, messageHash2, withdrawalRoot)
 
     const commitmentBatch = [
       {
@@ -241,7 +301,7 @@ describe("Bridge", function () {
       nonce,
       "0x",
       0,
-      messageHash,
+      messageHash2,
       0,
       hashes[1],
     );

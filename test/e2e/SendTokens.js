@@ -102,9 +102,15 @@ describe("Send tokens test", () => {
 
     let rollupContractAddress = "0x0000000000000000000000000000000000000000";
     if (withRollup) {
-      const rollupFactory = await ethers.getContractFactory("BatchRollup.sol");
+      const VerifierContract = await ethers.getContractFactory("VerifierMock");
+
+      let verifier = await VerifierContract.deploy();
+      const rollupFactory = await ethers.getContractFactory("Rollup");
+      const vkKey = "0x00612f9d5a388df116872ff70e36bcb86c7e73b1089f32f68fc8e0d0ba7861b7"
+      const genesisHash = "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
+
       log(`rollupContract started deploy`);
-      rollupContract = await rollupFactory.connect(owner).deploy();
+      rollupContract = await rollupFactory.connect(owner).deploy(0,0,0,verifier.target, vkKey, genesisHash, "0x0000000000000000000000000000000000000000", 1);
       rollupContractAddress = rollupContract.target;
       log("rollupContractAddress:", rollupContractAddress);
       let rollupContractTxReceipt = await rollupContract
@@ -224,6 +230,7 @@ describe("Send tokens test", () => {
         gasLimit: 30_000_000,
       },
     );
+    log(`QUEUE:`, await l2BridgeContract.getQueueSize());
     log("l2TokenContract.address", l2TokenContract.target);
     let sendTokensReceipt = await sendTokensTx.wait();
     log(`sendTokensReceipt:`, sendTokensReceipt);
@@ -345,6 +352,7 @@ describe("Send tokens test", () => {
       l1Addresses[3],
       10,
     );
+    log(`QUEUE:`, await l1BridgeContract.getQueueSize());
     log(`l2TokenContract.address ${l2TokenContract.target}`);
     let sendTokensBackTxReceipt = await sendTokensBackTx.wait();
     log(`sendTokensBackTxReceipt:`, sendTokensBackTxReceipt);
@@ -364,18 +372,36 @@ describe("Send tokens test", () => {
     );
     expect(l1BridgeContractSentMessageEvents.length).to.equal(1);
 
-    let messageHash = l1BridgeContractSentMessageEvents[0].args.messageHash;
     const sentBackEvent = l1BridgeContractSentMessageEvents[0];
 
-    let sendMessageHashBuffer = Buffer.from(
-      sendMessageHash.substring(2),
-      "hex",
-    );
+    let messageHash = l2BridgeContractSentMessageEvents[0].args.messageHash;
+    const depositBackEvent = l2BridgeContractSentMessageEvents[0];
+    console.log("Event: ", sentBackEvent)
+
+    let depositHash = ethers.keccak256(messageHash);
+
+    const commitmentBatch = [
+      {
+        previousBlockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        blockHash:     sendTokensReceipt.blockHash,
+        withdrawalHash: sentBackEvent.args.messageHash,
+        depositHash: depositHash,
+      }];
+    const depositsInBlock =    [{
+      blochHash: sendTokensReceipt.blockHash,
+      countDepositsInBlock: 1
+    }];
+
+    let queue = await l1BridgeContract.getQueueSize();
+    console.log("QUEUE: ", queue, messageHash, depositHash)
+
+    let nextBatchIndex = await rollupContract.nextBatchIndex();
+
     log(`acceptNextTx started`);
-    const acceptNextTx = await rollupContract.acceptNextProof(
-      1,
-      messageHash,
-      sendMessageHashBuffer,
+    const acceptNextTx = await rollupContract.acceptNextBatch(
+      nextBatchIndex,
+      commitmentBatch,
+      depositsInBlock,
       {
         gasLimit: 30_000_000,
       },
@@ -388,14 +414,17 @@ describe("Send tokens test", () => {
     log("Args: ", sentBackEvent);
     const l2BridgeContractReceiveMessageWithProofTx =
       await l2BridgeContract.receiveMessageWithProof(
+        nextBatchIndex,
+        commitmentBatch[0],
         sentBackEvent.args["sender"],
         sentBackEvent.args["to"],
         sentBackEvent.args["value"].toString(),
         sentBackEvent.args["nonce"].toString(),
         sentBackEvent.args["data"],
-        // [],
+        0,
         "0x",
-        1,
+        0,
+        "0x",
         {
           gasLimit: 30_000_000,
         },

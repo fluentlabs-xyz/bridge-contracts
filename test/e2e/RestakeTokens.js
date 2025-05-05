@@ -417,8 +417,13 @@ describe("Contract deployment and interaction", function () {
 
     let rollupAddress = "0x0000000000000000000000000000000000000000";
     if (withRollup) {
-      const rollupFactory = await ethers.getContractFactory("BatchRollup.so");
-      rollupContract = await rollupFactory.connect(owner).deploy();
+      const VerifierContract = await ethers.getContractFactory("VerifierMock");
+
+      let verifier = await VerifierContract.deploy();
+      const rollupFactory = await ethers.getContractFactory("Rollup");
+      const vkKey = "0x00612f9d5a388df116872ff70e36bcb86c7e73b1089f32f68fc8e0d0ba7861b7"
+      const genesisHash = "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
+      rollupContract = await rollupFactory.connect(owner).deploy(0,0,0,verifier.target, vkKey, genesisHash, "0x0000000000000000000000000000000000000000", 1);
       rollupAddress = rollupContract.target;
       log("rollupAddress:", rollupAddress);
     }
