@@ -19,6 +19,7 @@ describe("ERC20Gateway", function () {
     bridge = await BridgeContract.deploy(
       accounts[0].address,
       accounts[1].address,
+      0
     );
     bridge = await bridge.waitForDeployment();
 
@@ -139,8 +140,8 @@ describe("ERC20Gateway", function () {
 
     const data = AbiCoder.defaultAbiCoder()
       .encode(
-        ["address", "address", "uint256", "uint256", "bytes"],
-        ["0x1111111111111111111111111111111111111111", erc20Gateway.target, 0, 0, _message],
+        ["address", "address", "uint256", "uint256", "uint256", "bytes"],
+        ["0x1111111111111111111111111111111111111111", erc20Gateway.target, 0, 0, 0, _message],
       )
       .slice(2);
 
@@ -150,6 +151,7 @@ describe("ERC20Gateway", function () {
     const receive_tx = await contractWithSigner.receiveMessage(
       "0x1111111111111111111111111111111111111111",
       erc20Gateway.target,
+      0,
       0,
       0,
       _message,
@@ -194,6 +196,7 @@ describe("ERC20Gateway", function () {
       const repeat_receive_tx = await contractWithSigner.receiveMessage(
         "0x1111111111111111111111111111111111111111",
         erc20Gateway.target,
+        0,
         0,
         0,
         "0x",

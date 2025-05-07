@@ -20,12 +20,14 @@ describe("Bridge", function () {
     const BridgeContract = await ethers.getContractFactory("Bridge");
     const accounts = await hre.ethers.getSigners();
 
-    bridge = await BridgeContract.deploy(accounts[0].address, rollup.target);
+    bridge = await BridgeContract.deploy(accounts[0].address, rollup.target, 2);
     bridge = await bridge.waitForDeployment();
 
     rollup.setBridge(bridge.target);
 
   });
+
+
 
   it("Send message test", async function () {
     const accounts = await hre.ethers.getSigners();
@@ -154,17 +156,13 @@ describe("Bridge", function () {
       "0x1111111111111111111111111111111111111111",
       receiverAddress,
       200,
-      0,
+      1,
+      10,
+      nonce,
       "0x",
     );
 
     await receive_tx.wait();
-
-    const error_events = await bridge.queryFilter(
-      "Error",
-      receive_tx.blockNumber,
-    );
-    console.log("Error: ", error_events);
 
     const events = await bridge.queryFilter(
       "ReceivedMessage",
@@ -174,7 +172,7 @@ describe("Bridge", function () {
     console.log("With event: ", events);
     expect(events.length).to.equal(1);
     expect(events[0].args.messageHash).to.equal(
-      "0x5e6af7e11771fafdbeba41d9781ea9a8fcdac0a801b5df4deebde301997fc061",
+      "0x4dce65a8d545129b58933f3c6a6644b8d067b46131ca278af94e95a69f502e69",
     );
     expect(events[0].args.successfulCall).to.equal(true);
 
@@ -191,6 +189,8 @@ describe("Bridge", function () {
         "0x1111111111111111111111111111111111111111",
         receiverAddress,
         200,
+        1,
+        10,
         nonce,
         "0x",
       );
@@ -215,11 +215,13 @@ describe("Bridge", function () {
 
     let messageHash = hre.ethers.keccak256(
         AbiCoder.defaultAbiCoder().encode(
-            ["address", "address", "uint256", "uint256", "bytes"],
+            ["address", "address", "uint256", "uint256", "uint256", "uint256", "bytes"],
             [
               "0x1111111111111111111111111111111111111111",
               receiverAddress,
               100,
+              1,
+              11,
               nonce,
               "0x"
             ]
@@ -228,11 +230,13 @@ describe("Bridge", function () {
 
     let messageHash2 = hre.ethers.keccak256(
         AbiCoder.defaultAbiCoder().encode(
-            ["address", "address", "uint256", "uint256", "bytes"],
+            ["address", "address", "uint256", "uint256", "uint256", "uint256", "bytes"],
             [
               "0x1111111111111111111111111111111111111111",
               receiverAddress,
               200,
+              1,
+              0,
               nonce + 1n,
               "0x"
             ]
@@ -298,12 +302,18 @@ describe("Bridge", function () {
       "0x1111111111111111111111111111111111111111",
       receiverAddress,
       100,
+      1,
+      11,
       nonce,
       "0x",
-      0,
-      messageHash2,
-      0,
-      hashes[1],
+      {
+        nonce: 0,
+        proof: messageHash2,
+      },
+      {
+        nonce: 0,
+        proof: hashes[1],
+      },
     );
 
     await receive_tx.wait();
@@ -312,7 +322,7 @@ describe("Bridge", function () {
       "ReceivedMessage",
       receive_tx.blockNumber,
     );
-
+    console.log("Block: ", receive_tx.blockNumber)
     expect(events.length).to.equal(1);
 
     expect(events[0].args.messageHash).to.equal(
@@ -322,71 +332,135 @@ describe("Bridge", function () {
 
     let new_balance = await hre.ethers.provider.getBalance(receiverAddress);
     expect(new_balance - origin_balance).to.be.eql(100n);
+  });
 
-    // await rollupContractWithSigner.acceptNextProof(
-    //   2,
-    //   "0x3e13975f9e4165cf4119f2f82528f20d0ba7d1ab18cf62b0e07a625fdcb600ba",
-    //   "0x",
-    // );
-    //
-    // receive_tx = await contractWithSigner.receiveMessageWithProof(
-    //   "0x1111111111111111111111111111111111111111",
-    //   receiverAddress,
-    //   100,
-    //   1,
-    //   "0x",
-    //   Buffer.from(
-    //     "1fbe8b16b467b65c93cc416c9f6a43585820a41b90f14f6b74abe46e017fac75",
-    //     "hex",
-    //   ),
-    //   2,
-    // );
-    //
-    // events = await bridge.queryFilter(
-    //   "ReceivedMessage",
-    //   receive_tx.blockNumber,
-    // );
-    //
-    // expect(events.length).to.equal(1);
-    // expect(events[0].args.messageHash).to.equal(
-    //   "0x835612469dd5d58ef5be0da80c826de8354bbdd63eec7aea2dcca10ab8c0ff73",
-    // );
-    // expect(events[0].args.successfulCall).to.equal(true);
-    //
-    // new_balance = await hre.ethers.provider.getBalance(receiverAddress);
-    // expect(new_balance - origin_balance).to.be.eql(200n);
-    //
-    // await rollupContractWithSigner.acceptNextProof(
-    //   3,
-    //   "0xf205d0a2ae61551dafb4c8b459883c5ad295948069f23d97d9e2e5a21f02ab7b",
-    //   "0x",
-    // );
-    //
-    // receive_tx = await contractWithSigner.receiveMessageWithProof(
-    //   "0x1111111111111111111111111111111111111111",
-    //   receiverAddress,
-    //   100,
-    //   2,
-    //   "0x",
-    //   Buffer.from(
-    //     "00000000000000000000000000000000000000000000000000000000000000003e13975f9e4165cf4119f2f82528f20d0ba7d1ab18cf62b0e07a625fdcb600ba",
-    //     "hex",
-    //   ),
-    //   3,
-    // );
-    //
-    // events = await bridge.queryFilter(
-    //   "ReceivedMessage",
-    //   receive_tx.blockNumber,
-    // );
-    //
-    // expect(events.length).to.equal(1);
-    // expect(events[0].args.messageHash).to.equal(
-    //   "0x6bb3a22ed7bf22ee8607e5c6afad2b02dde06fe81be5723452da97b74b162c87",
-    // );
-    // expect(events[0].args.successfulCall).to.equal(true);
-    //
-    // new_balance = await hre.ethers.provider.getBalance(receiverAddress);
-    // expect(new_balance - origin_balance).to.be.eql(300n);
+  it("Fallback message test", async function () {
+    const accounts = await hre.ethers.getSigners();
+    const contractWithSigner = bridge.connect(accounts[0]);
+
+    const receiverAddress = await accounts[1].getAddress();
+
+    const origin_balance =
+        await hre.ethers.provider.getBalance(receiverAddress);
+
+    let nonce = await contractWithSigner.receivedNonce();
+
+    const receive_tx = await contractWithSigner.receiveMessage(
+        "0x1111111111111111111111111111111111111111",
+        receiverAddress,
+        200,
+        1,
+        0,
+        nonce,
+        "0x",
+    );
+
+    await receive_tx.wait();
+
+
+    const events = await bridge.queryFilter(
+        "RollbackMessage",
+        receive_tx.blockNumber,
+    );
+
+    console.log("With event: ", events);
+    expect(events.length).to.equal(1);
+    expect(events[0].args.messageHash).to.equal(
+        "0x80286cf205ed88deff46a298b6aaf81050edb80f0d97aa555c4f3e4ae4e310c3",
+    );
+    expect(events[0].args.blockNumber).to.equal(14n);
+
+    const new_balance = await hre.ethers.provider.getBalance(receiverAddress);
+    expect(new_balance - origin_balance).to.be.eql(0n);
+
+    let messageStatus = await bridge.receivedMessage(
+        events[0].args.messageHash,
+    );
+    console.log("Message status: ", messageStatus);
+  });
+
+  it("Rollback message test", async function () {
+    const accounts = await hre.ethers.getSigners();
+    const contractWithSigner = bridge.connect(accounts[0]);
+
+    const receiverAddress = await accounts[1].getAddress();
+
+    const origin_balance =
+        await hre.ethers.provider.getBalance(receiverAddress);
+
+    const send_tx = await contractWithSigner.sendMessage(
+        "0x1111111111111111111111111111111111111111",
+        "0x0102030405",
+        { value: 2000 },
+    );
+    await send_tx.wait();
+
+    const events = await bridge.queryFilter("SentMessage", send_tx.blockNumber);
+
+    let messageHash = events[0].args.messageHash;
+    let rollbackEvent = events[0];
+
+    let previousBlock = await rollup.lastBlockHashAccepted();
+
+    const commitmentBatch = [
+      {
+        previousBlockHash: previousBlock,
+        blockHash: "0x6214372ee997ea4da68e2816fbca6442b238632d173d1f5a6d9cd6692323c398",
+        withdrawalHash: messageHash,
+        depositHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      },
+      {
+        previousBlockHash: "0x6214372ee997ea4da68e2816fbca6442b238632d173d1f5a6d9cd6692323c398",
+        blockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        withdrawalHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        depositHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      },
+    ];
+
+    const hashes = commitmentBatch.map((item) => {
+      return hre.ethers.keccak256(
+          AbiCoder.defaultAbiCoder().encode(
+              ["bytes32", "bytes32", "bytes32", "bytes32"],
+              [
+                item.previousBlockHash,
+                item.blockHash,
+                item.withdrawalHash,
+                item.depositHash,
+              ]
+          )
+      );
+    });
+    const rollupContractWithSigner = rollup.connect(accounts[0]);
+
+    let nextBatchIndex = await rollupContractWithSigner.nextBatchIndex();
+
+    let queueSize = await contractWithSigner.getQueueSize();
+
+    await rollupContractWithSigner.acceptNextBatch(
+        nextBatchIndex,
+        commitmentBatch,
+        [],
+    );
+
+    let receive_tx = await contractWithSigner.rollbackMessageWithProof(
+        nextBatchIndex,
+        commitmentBatch[0],
+        rollbackEvent.args["sender"],
+        rollbackEvent.args["to"],
+        rollbackEvent.args["value"].toString(),
+        rollbackEvent.args["chainId"].toString(),
+        rollbackEvent.args["blockNumber"].toString(),
+        rollbackEvent.args["nonce"].toString(),
+        rollbackEvent.args["data"],
+        {
+          nonce: 0,
+          proof: "0x",
+        },
+        {
+          nonce: 0,
+          proof: hashes[1],
+        },
+    );
+
   });
 });

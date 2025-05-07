@@ -40,7 +40,7 @@ describe("Send tokens test", () => {
       l1BridgeContract,
       l1ImplementationAddress,
       l1FactoryAddress,
-    ] = await SetUpChain(ctxL1);
+    ] = await SetUpChain(ctxL1, false, 10);
 
     log("Linking bridges");
     const mockErc20TokenFactory =
@@ -78,7 +78,7 @@ describe("Send tokens test", () => {
     expect(setOtherSideReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
   });
 
-  async function SetUpChain(ctx, withRollup = false) {
+  async function SetUpChain(ctx, withRollup = false, receiveDeadLine = 0) {
     log(`SetUp chain for ${ctx.networkName} (withRollup=${withRollup})`);
 
     const owner = ctx.owner();
@@ -125,7 +125,7 @@ describe("Send tokens test", () => {
     await sleep(1000);
     let bridgeContract = await bridgeFactory
       .connect(owner)
-      .deploy(owner.address, rollupContractAddress);
+      .deploy(owner.address, rollupContractAddress, receiveDeadLine);
     bridgeContract = await bridgeContract.waitForDeployment();
     log(`bridgeContract.address: ${bridgeContract.target}`);
     let bridgeContractTxReceipt = await bridgeContract
@@ -282,6 +282,8 @@ describe("Send tokens test", () => {
         l2BridgeContractSentMessageEvent0.args["sender"],
         l2BridgeContractSentMessageEvent0.args["to"],
         l2BridgeContractSentMessageEvent0.args["value"],
+        l2BridgeContractSentMessageEvent0.args["chainId"].toString(),
+        l2BridgeContractSentMessageEvent0.args["blockNumber"],
         l2BridgeContractSentMessageEvent0.args["nonce"],
         l2BridgeContractSentMessageEvent0.args["data"],
       );
@@ -307,15 +309,6 @@ describe("Send tokens test", () => {
       `l1BridgeContractReceivedMessageEvents:`,
       l1BridgeContractReceivedMessageEvents,
     );
-    log(`getting l1BridgeContractErrorEvents`);
-    const l1BridgeContractErrorEvents = await l1BridgeContract.queryFilter(
-      "Error",
-      l1BridgeContractReceiveMessageReceipt.blockNumber,
-    );
-    log(
-      `l1BridgeContractErrorEvents: ${l1BridgeContractErrorEvents} (address ${l1BridgeContract.target})`,
-    );
-
     log(
       "Event: ",
       l1GatewayContract.target,
@@ -326,13 +319,11 @@ describe("Send tokens test", () => {
         "ReceivedTokens",
         l1BridgeContractReceiveMessageReceipt.blockNumber,
       );
-
-    log(`l1BridgeContractErrorEvents:`, l1BridgeContractErrorEvents);
     log(
       `l1BridgeContractReceivedMessageEvents:`,
       l1BridgeContractReceivedMessageEvents,
     );
-    expect(l1BridgeContractErrorEvents.length).to.equal(0);
+
     expect(l1BridgeContractReceivedMessageEvents.length).to.equal(1);
     log(
       `l1GatewayContractReceivedTokensEvents:`,
@@ -419,12 +410,18 @@ describe("Send tokens test", () => {
         sentBackEvent.args["sender"],
         sentBackEvent.args["to"],
         sentBackEvent.args["value"].toString(),
+        sentBackEvent.args["chainId"].toString(),
+        sentBackEvent.args["blockNumber"].toString(),
         sentBackEvent.args["nonce"].toString(),
         sentBackEvent.args["data"],
-        0,
-        "0x",
-        0,
-        "0x",
+        {
+          nonce: 0,
+          proof: "0x",
+        },
+        {
+          nonce: 0,
+          proof: "0x",
+        },
         {
           gasLimit: 30_000_000,
         },
@@ -447,21 +444,12 @@ describe("Send tokens test", () => {
         "ReceivedMessage",
         l1BridgeContractReceiveMessageReceipt.blockNumber,
       );
-    log(
-      `getting l2BridgeContractErrorEvents (contract address: ${l2BridgeContract.target})`,
-    );
-    const l2BridgeContractErrorEvents = await l2BridgeContract.queryFilter(
-      "Error",
-      l1BridgeContractReceiveMessageReceipt.blockNumber,
-    );
     log(`getting l2GatewayContractGatewayBackEvents`);
     const l2GatewayContractGatewayBackEvents =
       await l2GatewayContract.queryFilter(
         "ReceivedTokens",
         l1BridgeContractReceiveMessageReceipt.blockNumber,
       );
-
-    log(`l2BridgeContractErrorEvents:`, l2BridgeContractErrorEvents);
     log(
       `l2BridgeContractReceivedMessageEvents:`,
       l2BridgeContractReceivedMessageEvents,
@@ -470,7 +458,6 @@ describe("Send tokens test", () => {
       `l2GatewayContractGatewayBackEvents:`,
       l2GatewayContractGatewayBackEvents,
     );
-    expect(l2BridgeContractErrorEvents.length).to.equal(0);
     expect(l2BridgeContractReceivedMessageEvents.length).to.equal(1);
     expect(l2GatewayContractGatewayBackEvents.length).to.equal(1);
   });

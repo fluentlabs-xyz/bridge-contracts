@@ -15,7 +15,7 @@ describe("Rollup.sol", function () {
     const vkKey = "0x00612f9d5a388df116872ff70e36bcb86c7e73b1089f32f68fc8e0d0ba7861b7"
     const genesisHash = "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
     const BridgeContract = await ethers.getContractFactory("Bridge");
-    let bridge = await BridgeContract.deploy("0x0000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000")
+    let bridge = await BridgeContract.deploy("0x0000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000", 0)
 
     rollup = await RollupContract.deploy(10000,0,1, verifier.target, vkKey, genesisHash, bridge.target, 2);
 

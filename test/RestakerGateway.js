@@ -20,6 +20,7 @@ describe("RestakerGateway", function () {
     bridge = await BridgeContract.deploy(
       accounts[0].address,
       accounts[1].address,
+      0,
     );
     bridge = await bridge.waitForDeployment();
 
