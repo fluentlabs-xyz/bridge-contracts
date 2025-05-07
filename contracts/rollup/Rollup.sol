@@ -165,7 +165,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
 
         require(
             _commitmentBatch[0].previousBlockHash == lastBlockHashAccepted,
-            "Wrong block number"
+            "Wrong previous block hash"
         );
 
         uint256 depositIndex = 0;
