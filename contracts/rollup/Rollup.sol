@@ -1,30 +1,44 @@
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/IRollupVerifier.sol";
 import "../interfaces/IVerifier.sol";
 import "../restaker/libraries/BlobHashGetter.sol";
-import "./RLPReader.sol";
-import {BatchHeaderCodec} from "../restaker/libraries/BatchHeaderCodec.sol";
 import {Bridge} from "../Bridge.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import         "hardhat/console.sol";
 
 pragma solidity ^0.8.0;
 
-contract Rollup is Ownable, BlobHashGetterDeployer {
-    using RLPReader for bytes;
-    using RLPReader for RLPReader.RLPItem;
+contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
+    error RollupCorrupted();
+    error WrongBatchIndex();
+    error WrongBatchSize();
+    error WrongPrevBlockHash();
+    error WrongBlockSequence();
+    error DepositVerificationFailed();
+    error AcceptDepositDeadlineExceeded();
+    error BatchNotAccepted();
+    error BatchAlreadyApproved();
+    error BatchAlreadyProofed();
+    error BatchAlreadyChallenged();
+    error InsufficientChallengeDeposit();
+    error EthTransferFailed();
+    error EmptyLeaves();
+    error InvalidRevertIndex();
 
     address public bridge;
 
     bytes32 public programVKey;
 
     uint256 public nextBatchIndex;
-    uint256 public approveTimeout;
+    uint256 public approveBlockCount;
     uint256 public challengeDepositAmount;
-    uint256 public challengeTime;
+    uint256 public challengeBlockCount;
     address public blobHashGetter;
 
     uint256 public batchSize;
     bytes32 public lastBlockHashAccepted;
-    uint256 public lastDepositAcceptedTime;
+    uint256 public lastDepositAcceptedBlockNumber;
+    uint256 public acceptDepositDeadline;
 
     uint[] private challengeQueue;
     uint private challengeQueueStart;
@@ -32,25 +46,17 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     bool private daCheck;
 
     mapping(uint256 => bytes32) public acceptedBatchHash;
-    mapping(uint256 => uint256) public acceptedTime;
+    mapping(uint256 => uint256) public acceptedBlock;
     mapping(uint256 => bool)    public proofedBatch;
 
     mapping(address => uint256) public challengerDeposit;
     mapping(uint256 => address) public batchChallenger;
     mapping(uint256 => uint256) public challengeDeadline;
 
-    uint256 public constant ACCEPT_DEPOSIT_DEADLINE = 24 * 60 * 60;
+
     bytes32 public constant ZERO_BYTES_HASH = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
 
     IVerifier private verifier;
-
-    enum WithdrawalStatus { None, Pending, Completed, Failed }
-
-    struct WithdrawalEvent {
-        address bridge;
-        uint256[] topics;
-        bytes data;
-    }
 
     struct BlockCommitment {
         bytes32 previousBlockHash;
@@ -60,31 +66,34 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     }
 
     struct DepositsInBlock {
-        bytes32 blochHash;
-        uint256 countDepositsInBlock;
+        bytes32 blockHash;
+        uint256 depositCount;
     }
 
     event UpdateVerifier(address oldVerifier, address newVerifier);
+    event BatchAccepted(uint256 batchIndex, bytes32 batchRoot);
 
     constructor(
         uint256 _challengeDepositAmount,
-        uint256 _challengeTime,
-        uint256 _approveTimeout,
+        uint256 _challengeBlockCount,
+        uint256 _approveBlockCount,
         address _verifier,
         bytes32 _programVKey,
         bytes32 _genesisHash,
         address _bridge,
-        uint256 _batchSize
+        uint256 _batchSize,
+        uint256 _acceptDepositDeadline
     ) Ownable(msg.sender) {
         challengeDepositAmount = _challengeDepositAmount;
-        challengeTime = _challengeTime;
-        approveTimeout = _approveTimeout;
+        challengeBlockCount = _challengeBlockCount;
+        approveBlockCount = _approveBlockCount;
         verifier = IVerifier(_verifier);
         daCheck = true;
         programVKey = _programVKey;
         lastBlockHashAccepted = _genesisHash;
         bridge = _bridge;
         batchSize = _batchSize;
+        acceptDepositDeadline = _acceptDepositDeadline;
     }
 
     function calculateBlobHash(
@@ -108,7 +117,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
 
     function calculateBatchRoot(
         BlockCommitment[] calldata commitmentBatch
-    ) public returns (bytes32) {
+    ) public view returns (bytes32) {
         bytes memory leafs = new bytes(commitmentBatch.length * 32);
 
         for(uint256 i = 0; i < commitmentBatch.length; ++i) {
@@ -126,15 +135,15 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         return _calculateMerkleRoot(leafs);
     }
 
-    function checkDeposit(
+    function _checkDeposit(
         BlockCommitment calldata _commitmentBatch,
         DepositsInBlock calldata depositInBlock
-    ) public returns (bool) {
-        require(_commitmentBatch.blockHash == depositInBlock.blochHash, "wrong deposits in block");
+    ) private returns (bool) {
+        require(_commitmentBatch.blockHash == depositInBlock.blockHash, "wrong deposits in block");
 
-        bytes32[] memory depositIds = new bytes32[](depositInBlock.countDepositsInBlock);
-        for(uint256 i = 0; i < depositInBlock.countDepositsInBlock; ++i) {
-            bytes32 depositId = Bridge(bridge).sentMessageQueue().dequeue();
+        bytes32[] memory depositIds = new bytes32[](depositInBlock.depositCount);
+        for(uint256 i = 0; i < depositInBlock.depositCount; ++i) {
+            bytes32 depositId = Bridge(bridge).popSentMessage();
             depositIds[i]= depositId;
         }
 
@@ -173,19 +182,19 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
                 "Wrong block sequence"
             );
             if (_commitmentBatch[i].depositHash != ZERO_BYTES_HASH) {
-                require(checkDeposit(_commitmentBatch[i], depositsInBlocks[depositIndex]), "Failed to check deposit");
+                require(_checkDeposit(_commitmentBatch[i], depositsInBlocks[depositIndex]), "Failed to check deposit");
                 depositIndex += 1;
             }
         }
         if (_commitmentBatch[batchSize - 1].depositHash != ZERO_BYTES_HASH) {
-            require(checkDeposit(_commitmentBatch[batchSize -1], depositsInBlocks[depositIndex]), "Failed to check deposit");
+            require(_checkDeposit(_commitmentBatch[batchSize -1], depositsInBlocks[depositIndex]), "Failed to check deposit");
         }
 
         if (Bridge(bridge).getQueueSize() == 0) {
-            lastDepositAcceptedTime = 0;
-        } else if (queueSize > Bridge(bridge).getQueueSize() || queueSize != 0 && lastDepositAcceptedTime == 0){
-            lastDepositAcceptedTime = block.timestamp;
-        } else if (lastDepositAcceptedTime + ACCEPT_DEPOSIT_DEADLINE < block.timestamp ) {
+            lastDepositAcceptedBlockNumber = 0;
+        } else if (queueSize > Bridge(bridge).getQueueSize() || queueSize != 0 && lastDepositAcceptedBlockNumber == 0){
+            lastDepositAcceptedBlockNumber = block.number;
+        } else if (lastDepositAcceptedBlockNumber + acceptDepositDeadline < block.number ) {
             revert("deadline is overdue. Batch have to contains deposits");
         }
 
@@ -207,7 +216,9 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         acceptedBatchHash[_batchIndex] = batchRoot;
         nextBatchIndex = _batchIndex + 1;
         lastBlockHashAccepted = _commitmentBatch[batchSize - 1].blockHash;
-        acceptedTime[_batchIndex] = block.timestamp;
+        acceptedBlock[_batchIndex] = block.number;
+
+        emit BatchAccepted(_batchIndex, batchRoot);
     }
 
     function getChallengeQueue() public view returns (uint[] memory) {
@@ -221,7 +232,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     function _rollupCorrupted() internal view returns (bool) {
         return
             challengeQueue.length != 0 &&
-            challengeDeadline[challengeQueue[0]] < block.timestamp;
+            challengeDeadline[challengeQueue[0]] < block.number;
     }
 
     function acceptedBatch(uint256 _batchIndex) external view returns (bool) {
@@ -237,17 +248,17 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
     }
 
     function _approvedBatch(uint256 _batchIndex) internal view returns (bool) {
-        uint256 blockAcceptTime = acceptedTime[_batchIndex];
+        uint256 blockAcceptBlockNumber = acceptedBlock[_batchIndex];
 
         return
             _acceptedBatch(_batchIndex) &&
             (
-                block.timestamp - blockAcceptTime > approveTimeout ||
+                block.number - blockAcceptBlockNumber > approveBlockCount ||
                 proofedBatch[_batchIndex]
             );
     }
 
-    function challengeBatch(uint256 _batchIndex) external payable {
+    function challengeBatch(uint256 _batchIndex) external payable nonReentrant {
         require(_acceptedBatch(_batchIndex), "batch is not accepted");
         require(!_approvedBatch(_batchIndex), "batch already approved");
         require(!proofedBatch[_batchIndex], "batch already proofed");
@@ -263,14 +274,14 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
 
         challengerDeposit[msg.sender] += msg.value;
         batchChallenger[_batchIndex] = msg.sender;
-        challengeDeadline[_batchIndex] = block.timestamp + challengeTime;
+        challengeDeadline[_batchIndex] = block.number + challengeBlockCount;
         challengeQueue.push(_batchIndex);
     }
 
     function proofBatch(
         uint256 _batchIndex,
         bytes calldata _proof
-    ) external {
+    ) external nonReentrant {
         bytes32 blockHash = acceptedBatchHash[_batchIndex];
 
         verifier.verifyProof(
@@ -284,20 +295,18 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
 
         if (challenger != address(0)) {
             batchChallenger[_batchIndex] = address(0);
-            challengerDeposit[challenger] -= challengeDepositAmount;
+            if (challengerDeposit[challenger] >= challengeDepositAmount) {
+                challengerDeposit[challenger]-= challengeDepositAmount;
+                challenger.call{value: challengeDepositAmount}("");
+            }
 
             for (uint256 i = 0; i < challengeQueue.length; i++) {
                 if (challengeQueue[i] == _batchIndex) {
                     delete challengeQueue[i];
-                    _resolveChallenge(i);
                 }
             }
             _cleanQueue();
         }
-    }
-
-    function _resolveChallenge(uint256 blockNumber) internal {
-
     }
 
     function _getPublicValues(bytes32 _blockHash) internal pure returns (bytes memory) {
@@ -321,9 +330,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
             ++challengeQueueStart;
             if (challengeQueueStart >= challengeQueue.length) {
                 challengeQueueStart = 0;
-                while (challengeQueue.length != 0) {
-                    challengeQueue.pop();
-                }
+                delete challengeQueue;
                 return;
             }
         }
@@ -389,7 +396,7 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         }
     }
 
-    function forceRevertBatch(uint256 _revertedBatchIndex) external onlyOwner {
+    function forceRevertBatch(uint256 _revertedBatchIndex) external onlyOwner nonReentrant {
         require(_acceptedBatch(_revertedBatchIndex), "batch not accepted yet");
         require(_revertedBatchIndex != 0, "batch index can't be zero");
         for (uint256 i = _revertedBatchIndex; i < nextBatchIndex; i++) {
@@ -405,10 +412,11 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
             address challenger = batchChallenger[i];
             if (challenger != address(0)) {
                 batchChallenger[i] = address(0);
-                challengerDeposit[challenger] -= challengeDepositAmount;
-                (bool success, ) = challenger.call{value: challengeDepositAmount}("");
+                if (challengerDeposit[challenger] >= challengeDepositAmount) {
+                    challengerDeposit[challenger] -= challengeDepositAmount;
+                    (bool success, ) = challenger.call{value: challengeDepositAmount}("");
+                }
                 require(success, "ETH transfer failed");
-
             }
         }
         _cleanQueue();
