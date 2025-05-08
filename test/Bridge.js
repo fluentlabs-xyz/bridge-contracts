@@ -15,7 +15,7 @@ describe("Bridge", function () {
     const RollupContract = await ethers.getContractFactory("Rollup");
     const vkKey = "0x00612f9d5a388df116872ff70e36bcb86c7e73b1089f32f68fc8e0d0ba7861b7"
     const genesisHash = "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
-    rollup = await RollupContract.deploy(0,0,0,verifier.target, vkKey, genesisHash, "0x0000000000000000000000000000000000000000", 2);
+    rollup = await RollupContract.deploy(0,0,0,verifier.target, vkKey, genesisHash, "0x0000000000000000000000000000000000000000", 2, 10);
 
     const BridgeContract = await ethers.getContractFactory("Bridge");
     const accounts = await hre.ethers.getSigners();
@@ -131,8 +131,8 @@ describe("Bridge", function () {
         nextBatchIndex,
         commitmentBatch,
         [{
-          blochHash: "0xd16eb9c9f2fd1feef3fcefb569bdd8911d38b2f9f0fb86060add20287f57908e",
-          countDepositsInBlock: 1
+          blockHash: "0xd16eb9c9f2fd1feef3fcefb569bdd8911d38b2f9f0fb86060add20287f57908e",
+          depositCount: 1
         }],
     );
     let newQueueSize = await contractWithSigner.getQueueSize();
@@ -199,7 +199,7 @@ describe("Bridge", function () {
     } catch (error) {
       expect(error.toString()).to.equal(
         "Error: VM Exception while processing transaction: " +
-          "reverted with reason string 'message received out of turn'",
+          "reverted with custom error 'MessageReceivedOutOfOrder()'",
       );
     }
   });

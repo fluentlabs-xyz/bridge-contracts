@@ -206,7 +206,7 @@ describe("ERC20Gateway", function () {
     } catch (error) {
       expect(error.toString()).to.equal(
         "Error: VM Exception while processing transaction: " +
-          "reverted with reason string 'message received out of turn'",
+          "reverted with reason string 'MessageReceivedOutOfOrder()'",
       );
     }
   });

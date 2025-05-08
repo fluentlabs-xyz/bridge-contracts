@@ -379,8 +379,8 @@ describe("Send tokens test", () => {
         depositHash: depositHash,
       }];
     const depositsInBlock =    [{
-      blochHash: sendTokensReceipt.blockHash,
-      countDepositsInBlock: 1
+      blockHash: sendTokensReceipt.blockHash,
+      depositCount: 1
     }];
 
     let queue = await l1BridgeContract.getQueueSize();

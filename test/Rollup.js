@@ -17,7 +17,7 @@ describe("Rollup.sol", function () {
     const BridgeContract = await ethers.getContractFactory("Bridge");
     let bridge = await BridgeContract.deploy("0x0000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000", 0)
 
-    rollup = await RollupContract.deploy(10000,0,1, verifier.target, vkKey, genesisHash, bridge.target, 2);
+    rollup = await RollupContract.deploy(10000,0,1, verifier.target, vkKey, genesisHash, bridge.target, 2, 10);
 
     await rollup.setDaCheck(false)
   });
@@ -55,6 +55,9 @@ describe("Rollup.sol", function () {
     );
 
     let newBatchIndex = await rollupContractWithSigner.nextBatchIndex();
+
+    await network.provider.send("evm_mine");
+
     expect(newBatchIndex).to.eq(batchIndex + 1n);
     expect(await rollupContractWithSigner.acceptedBatch(batchIndex)).to.eq(true);
   });
@@ -87,7 +90,8 @@ describe("Rollup.sol", function () {
         []
     );
 
-    await sleep(2000)
+    await network.provider.send("evm_mine");
+
     let nextBatchIndex = await rollupContractWithSigner.nextBatchIndex();
 
 
@@ -96,6 +100,7 @@ describe("Rollup.sol", function () {
         commitmentBatch,
         []
     );
+
 
     expect(await rollupContractWithSigner.approvedBatch(batchIndex)).to.eq(true);
 
@@ -156,8 +161,6 @@ describe("Rollup.sol", function () {
 
     expect(await rollupContractWithSigner.rollupCorrupted()).to.eq(false);
 
-    await sleep(2000)
-
     await accounts[0].sendTransaction(
         {
           to: accounts[1].address,
@@ -209,8 +212,6 @@ describe("Rollup.sol", function () {
     );
 
     expect(await rollupContractWithSigner.rollupCorrupted()).to.eq(false);
-
-    await sleep(2000)
 
     await accounts[0].sendTransaction(
         {
