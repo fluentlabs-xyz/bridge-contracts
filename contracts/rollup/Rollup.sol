@@ -10,20 +10,21 @@ pragma solidity ^0.8.0;
 
 contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     error RollupCorrupted();
-    error WrongBatchIndex();
-    error WrongBatchSize();
-    error WrongPrevBlockHash();
-    error WrongBlockSequence();
-    error DepositVerificationFailed();
-    error AcceptDepositDeadlineExceeded();
-    error BatchNotAccepted();
-    error BatchAlreadyApproved();
-    error BatchAlreadyProofed();
-    error BatchAlreadyChallenged();
-    error InsufficientChallengeDeposit();
-    error EthTransferFailed();
-    error EmptyLeaves();
-    error InvalidRevertIndex();
+    error WrongPrevBlockHash(bytes32 expected, bytes32 provided);
+    error DepositVerificationFailed(bytes32 blockHash);
+    error AcceptDepositDeadlineExceeded(uint256 deadline, uint256 currentBlock);
+    error BatchNotAccepted(uint256 batchIndex);
+    error BatchAlreadyApproved(uint256 batchIndex);
+    error BatchAlreadyProofed(uint256 batchIndex);
+    error BatchAlreadyChallenged(uint256 batchIndex);
+    error InsufficientChallengeDeposit(uint256 required, uint256 provided);
+    error EthTransferFailed(address recipient, uint256 amount);
+    error InvalidRevertIndex(uint256 index);
+    error BlockHashMismatch(bytes32 expected, bytes32 provided);
+    error InvalidBatchIndex(uint256 expected, uint256 provided);
+    error InvalidBatchSize(uint256 expected, uint256 provided);
+    error InvalidBlockSequence(uint256 index, bytes32 currentHash, bytes32 nextPrevHash);
+    error NoLeavesProvided();
 
     address public bridge;
 
@@ -139,7 +140,9 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         BlockCommitment calldata _commitmentBatch,
         DepositsInBlock calldata depositInBlock
     ) private returns (bool) {
-        require(_commitmentBatch.blockHash == depositInBlock.blockHash, "wrong deposits in block");
+        if (_commitmentBatch.blockHash != depositInBlock.blockHash) {
+            revert BlockHashMismatch(_commitmentBatch.blockHash, depositInBlock.blockHash);
+        }
 
         bytes32[] memory depositIds = new bytes32[](depositInBlock.depositCount);
         for(uint256 i = 0; i < depositInBlock.depositCount; ++i) {
@@ -155,39 +158,40 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         BlockCommitment[] calldata _commitmentBatch,
         DepositsInBlock[] calldata depositsInBlocks
     ) external payable {
-        require(!_rollupCorrupted(), "can't accept while rollup corrupted");
+        if (_rollupCorrupted()) {
+            revert RollupCorrupted();
+        }
 
-        require(
-            _batchIndex == nextBatchIndex,
-            "Wrong batch index"
-        );
+        if (_batchIndex != nextBatchIndex) {
+            revert InvalidBatchIndex(nextBatchIndex, _batchIndex);
+        }
 
-        require(
-            _commitmentBatch.length == batchSize,
-            "Wrong batch size"
-        );
+        if (_commitmentBatch.length != batchSize) {
+            revert InvalidBatchSize(batchSize, _commitmentBatch.length);
+        }
 
-        require(
-            _commitmentBatch[0].previousBlockHash == lastBlockHashAccepted,
-            "Wrong previous block hash"
-        );
+        if (_commitmentBatch[0].previousBlockHash != lastBlockHashAccepted) {
+            revert WrongPrevBlockHash(lastBlockHashAccepted, _commitmentBatch[0].previousBlockHash);
+        }
 
         uint256 depositIndex = 0;
-
         uint256 queueSize = Bridge(bridge).getQueueSize();
 
         for(uint256 i = 0; i < batchSize - 1; ++i) {
-            require(
-                _commitmentBatch[i].blockHash == _commitmentBatch[i + 1].previousBlockHash,
-                "Wrong block sequence"
-            );
+            if (_commitmentBatch[i].blockHash != _commitmentBatch[i + 1].previousBlockHash) {
+                revert InvalidBlockSequence(i, _commitmentBatch[i].blockHash, _commitmentBatch[i + 1].previousBlockHash);
+            }
             if (_commitmentBatch[i].depositHash != ZERO_BYTES_HASH) {
-                require(_checkDeposit(_commitmentBatch[i], depositsInBlocks[depositIndex]), "Failed to check deposit");
+                if (!_checkDeposit(_commitmentBatch[i], depositsInBlocks[depositIndex])) {
+                    revert DepositVerificationFailed(_commitmentBatch[i].blockHash);
+                }
                 depositIndex += 1;
             }
         }
         if (_commitmentBatch[batchSize - 1].depositHash != ZERO_BYTES_HASH) {
-            require(_checkDeposit(_commitmentBatch[batchSize -1], depositsInBlocks[depositIndex]), "Failed to check deposit");
+            if (!_checkDeposit(_commitmentBatch[batchSize -1], depositsInBlocks[depositIndex])) {
+                revert DepositVerificationFailed(_commitmentBatch[batchSize - 1].blockHash);
+            }
         }
 
         if (Bridge(bridge).getQueueSize() == 0) {
@@ -195,7 +199,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         } else if (queueSize > Bridge(bridge).getQueueSize() || queueSize != 0 && lastDepositAcceptedBlockNumber == 0){
             lastDepositAcceptedBlockNumber = block.number;
         } else if (lastDepositAcceptedBlockNumber + acceptDepositDeadline < block.number ) {
-            revert("deadline is overdue. Batch have to contains deposits");
+            revert AcceptDepositDeadlineExceeded(lastDepositAcceptedBlockNumber + acceptDepositDeadline, block.number);
         }
 
 //        TODO: NOT IMPLEMENTED YET
@@ -259,18 +263,22 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     }
 
     function challengeBatch(uint256 _batchIndex) external payable nonReentrant {
-        require(_acceptedBatch(_batchIndex), "batch is not accepted");
-        require(!_approvedBatch(_batchIndex), "batch already approved");
-        require(!proofedBatch[_batchIndex], "batch already proofed");
-        require(
-            batchChallenger[_batchIndex] == address(0),
-            "batch already challenged"
-        );
+        if (!_acceptedBatch(_batchIndex)) {
+            revert BatchNotAccepted(_batchIndex);
+        }
+        if (_approvedBatch(_batchIndex)) {
+            revert BatchAlreadyApproved(_batchIndex);
+        }
+        if (proofedBatch[_batchIndex]) {
+            revert BatchAlreadyProofed(_batchIndex);
+        }
+        if (batchChallenger[_batchIndex] != address(0)) {
+            revert BatchAlreadyChallenged(_batchIndex);
+        }
 
-        require(
-            msg.value >= challengeDepositAmount,
-            "need to send challenge deposit in value"
-        );
+        if (msg.value < challengeDepositAmount) {
+            revert InsufficientChallengeDeposit(challengeDepositAmount, msg.value);
+        }
 
         challengerDeposit[msg.sender] += msg.value;
         batchChallenger[_batchIndex] = msg.sender;
@@ -341,7 +349,9 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     ) internal pure returns (bytes32) {
         uint256 count = _leafs.length / 32;
 
-        require(count > 0, "empty leafs");
+        if (count == 0) {
+            revert NoLeavesProvided();
+        }
 
         while (count > 0) {
             bytes32 hash;
@@ -397,8 +407,12 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     }
 
     function forceRevertBatch(uint256 _revertedBatchIndex) external onlyOwner nonReentrant {
-        require(_acceptedBatch(_revertedBatchIndex), "batch not accepted yet");
-        require(_revertedBatchIndex != 0, "batch index can't be zero");
+        if (!_acceptedBatch(_revertedBatchIndex)) {
+            revert BatchNotAccepted(_revertedBatchIndex);
+        }
+        if (_revertedBatchIndex == 0) {
+            revert InvalidRevertIndex(_revertedBatchIndex);
+        }
         for (uint256 i = _revertedBatchIndex; i < nextBatchIndex; i++) {
             for (
                 uint256 j = challengeQueueStart;
@@ -415,8 +429,10 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
                 if (challengerDeposit[challenger] >= challengeDepositAmount) {
                     challengerDeposit[challenger] -= challengeDepositAmount;
                     (bool success, ) = challenger.call{value: challengeDepositAmount}("");
+                    if (!success) {
+                        revert EthTransferFailed(challenger, challengeDepositAmount);
+                    }
                 }
-                require(success, "ETH transfer failed");
             }
         }
         _cleanQueue();
