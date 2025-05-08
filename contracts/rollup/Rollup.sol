@@ -141,11 +141,6 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
         return keccak256(abi.encodePacked(depositIds)) == _commitmentBatch.depositHash;
     }
 
-    function calculateBlobHash() public returns (bytes32){
-        //TODO:
-        return 0;
-    }
-
     function acceptNextBatch(
         uint256 _batchIndex,
         BlockCommitment[] calldata _commitmentBatch,
@@ -194,19 +189,19 @@ contract Rollup is Ownable, BlobHashGetterDeployer {
             revert("deadline is overdue. Batch have to contains deposits");
         }
 
-        bytes32 requiredBlobHash;
-
-        if (daCheck) {
-            requiredBlobHash = calculateBlobHash();
-            bytes32 submittedBlobHash = BlobHashGetter.getBlobHash(
-                blobHashGetter,
-                0
-            );
-            require(
-                submittedBlobHash == requiredBlobHash,
-                "submitted wrong blob to da"
-            );
-        }
+//        TODO: NOT IMPLEMENTED YET
+//        bytes32 requiredBlobHash;
+//        if (daCheck) {
+//            requiredBlobHash = calculateBlobHash();
+//            bytes32 submittedBlobHash = BlobHashGetter.getBlobHash(
+//                blobHashGetter,
+//                0
+//            );
+//            require(
+//                submittedBlobHash == requiredBlobHash,
+//                "submitted wrong blob to da"
+//            );
+//        }
 
         bytes32 batchRoot = calculateBatchRoot(_commitmentBatch);
         acceptedBatchHash[_batchIndex] = batchRoot;

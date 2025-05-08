@@ -10,7 +10,6 @@ import {ERC20TokenFactory} from "./ERC20TokenFactory.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IRestakingPool} from "./restaker/interfaces/IRestakingPool.sol";
-import {RestakingPool} from "./restaker/RestakingPool.sol";
 import {ILiquidityToken} from "./restaker/interfaces/ILiquidityToken.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 

@@ -8,7 +8,6 @@ import "./rollup/Rollup.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20Gateway} from "./interfaces/IERC20Gateway.sol";
 import {MerkleTree} from "./libraries/MerkleTree.sol";
-import {Merkle} from "./restaker/libraries/Merkle.sol";
 import {Rollup} from "./rollup/Rollup.sol";
 
 contract Bridge {
