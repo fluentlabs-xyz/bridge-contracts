@@ -1,19 +1,26 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity ^0.8.0;
 
-import "./libraries/Queue.sol";
-import "./rollup/Rollup.sol";
-
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "./libraries/Queue.sol";
 import {IERC20Gateway} from "./interfaces/IERC20Gateway.sol";
 import {MerkleTree} from "./libraries/MerkleTree.sol";
 import {Rollup} from "./rollup/Rollup.sol";
 
-contract Bridge {
+contract Bridge is ReentrancyGuard {
     uint256 public nonce;
     uint256 public receivedNonce;
     uint256 public receiveMessageDeadline;
+
+    error OnlyBridgeAuthority();
+    error OnlyRollupAuthority();
+    error MessageAlreadyReceived();
+    error MessageReceivedOutOfOrder();
+    error MessageNotFailed();
+    error ForbiddenSelfCall();
+    error RollbackMessageMismatch();
+    error InvalidBlockProof();
+    error InvalidWithdrawalProof();
 
     enum MessageStatus {
         None,
@@ -29,15 +36,17 @@ contract Bridge {
     mapping(bytes32 => MessageStatus) public receivedMessage;
     mapping(bytes32 => MessageStatus) public rollbackMessage;
 
-    Queue public sentMessageQueue;
+    Queue private sentMessageQueue;
     address public bridgeAuthority;
     address public rollup;
 
+    modifier onlyRollup() {
+        if (msg.sender != rollup) revert OnlyRollupAuthority();
+        _;
+    }
+
     modifier onlyBridgeSender() {
-        require(
-            msg.sender == bridgeAuthority,
-            "call only from bridge authority"
-        );
+        if (msg.sender != bridgeAuthority) revert OnlyBridgeAuthority();
         _;
     }
 
@@ -52,16 +61,15 @@ contract Bridge {
         bytes data
     );
 
-    event ReceivedMessage(bytes32 messageHash, bool successfulCall, bytes error);
+    event ReceivedMessage(bytes32 messageHash, bool successfulCall, bytes returnData);
     event RollbackMessage(bytes32 messageHash, uint256 blockNumber);
-    event ReceivedMessageRollback(bytes32 messageHash, bool successfulCall, bytes error);
+    event ReceivedMessageRollback(bytes32 messageHash, bool successfulCall, bytes returnData);
 
     constructor(address _bridgeAuthority, address _rollup, uint256 _receiveMessageDeadline) {
         bridgeAuthority = _bridgeAuthority;
         rollup = _rollup;
         receiveMessageDeadline = _receiveMessageDeadline;
-        if (rollup != address(0))
-        {
+        if (rollup != address(0)) {
             sentMessageQueue = new Queue();
         }
     }
@@ -73,6 +81,9 @@ contract Bridge {
         return 0;
     }
 
+    function popSentMessage() public onlyRollup returns (bytes32) {
+        return sentMessageQueue.dequeue();
+    }
 
     function sendMessage(
         address _to,
@@ -98,9 +109,8 @@ contract Bridge {
             sentMessageQueue.enqueue(messageHash);
         }
 
-        emit SentMessage(from, _to, value, block.chainid, block.number,messageNonce, messageHash, _message);
+        emit SentMessage(from, _to, value, block.chainid, block.number, messageNonce, messageHash, _message);
     }
-
 
     function rollbackMessageWithProof(
         uint256 _batchIndex,
@@ -114,31 +124,22 @@ contract Bridge {
         bytes calldata _message,
         MerkleProof calldata _rollback_proof,
         MerkleProof calldata _block_proof
-    ) external payable {
-        require(Rollup(rollup).approvedBatch(_batchIndex));
+    ) external payable nonReentrant {
+        if (!Rollup(rollup).approvedBatch(_batchIndex)) revert InvalidBlockProof();
 
         bytes32 messageHash = keccak256(_encodeMessage(
             _from,
             _to,
             _value,
-             _chainId,
+            _chainId,
             _blockNumber,
             _nonce,
             _message
         ));
 
-        require(
-            receivedMessage[messageHash] == MessageStatus.None,
-            "Message already received"
-        );
+        if (receivedMessage[messageHash] != MessageStatus.None) revert MessageAlreadyReceived();
 
-        _verifyWithdrawal(
-            _batchIndex,
-            _commitmentBatch,
-            _rollback_proof,
-            _block_proof,
-            messageHash
-        );
+        _verifyWithdrawal(_batchIndex, _commitmentBatch, _rollback_proof, _block_proof, messageHash);
         _rollbackMessage(_from, _to, _value, _blockNumber, _nonce, _message, messageHash);
     }
 
@@ -154,13 +155,9 @@ contract Bridge {
         bytes calldata _message,
         MerkleProof calldata _withdrawal_proof,
         MerkleProof calldata _block_proof
-    ) external payable {
-        require(
-            _nonce == _takeNextReceivedNonce(),
-            "message received out of turn"
-        );
-
-        require(Rollup(rollup).approvedBatch(_batchIndex));
+    ) external payable nonReentrant {
+        if (_nonce != _takeNextReceivedNonce()) revert MessageReceivedOutOfOrder();
+        if (!Rollup(rollup).approvedBatch(_batchIndex)) revert InvalidBlockProof();
 
         bytes32 messageHash = keccak256(_encodeMessage(
             _from,
@@ -172,20 +169,10 @@ contract Bridge {
             _message
         ));
 
-        require(
-            receivedMessage[messageHash] == MessageStatus.None,
-            "Message already received"
-        );
+        if (receivedMessage[messageHash] != MessageStatus.None) revert MessageAlreadyReceived();
 
-        _verifyWithdrawal(
-            _batchIndex,
-            _commitmentBatch,
-            _withdrawal_proof,
-            _block_proof,
-            messageHash
-        );
-
-        _receiveMessage(_from, _to, _value, _chainId,_blockNumber, _nonce, _message, messageHash);
+        _verifyWithdrawal(_batchIndex, _commitmentBatch, _withdrawal_proof, _block_proof, messageHash);
+        _receiveMessage(_from, _to, _value, _chainId, _blockNumber, _nonce, _message, messageHash);
     }
 
     function _verifyWithdrawal(
@@ -195,7 +182,7 @@ contract Bridge {
         MerkleProof calldata _block_proof,
         bytes32 _messageHash
     ) private {
-        require(MerkleTree.verifyMerkleProof(
+        bool blockValid = MerkleTree.verifyMerkleProof(
             Rollup(rollup).acceptedBatchHash(_batchIndex),
             keccak256(abi.encodePacked(
                 _commitmentBatch.previousBlockHash,
@@ -205,20 +192,16 @@ contract Bridge {
             ),
             _block_proof.nonce,
             _block_proof.proof
-        ),
-            "Failed to check batch proof"
         );
+        if (!blockValid) revert InvalidBlockProof();
 
-        require(MerkleTree.verifyMerkleProof(
+        bool withdrawalValid = MerkleTree.verifyMerkleProof(
             _commitmentBatch.withdrawalHash,
             _messageHash,
             _withdrawal_proof.nonce,
             _withdrawal_proof.proof
-        ),
-            "Failed to check withdrawal proof"
         );
-
-
+        if (!withdrawalValid) revert InvalidWithdrawalProof();
     }
 
     function receiveFailedMessage(
@@ -229,25 +212,13 @@ contract Bridge {
         uint256 _blockNumber,
         uint256 _nonce,
         bytes calldata _message
-    ) external payable onlyBridgeSender {
-        bytes memory encodedMessage = _encodeMessage(
-            _from,
-            _to,
-            _value,
-            _chainId,
-            _blockNumber,
-            _nonce,
-            _message
-        );
-
+    ) external payable nonReentrant {
+        bytes memory encodedMessage = _encodeMessage(_from, _to, _value, _chainId, _blockNumber, _nonce, _message);
         bytes32 messageHash = keccak256(encodedMessage);
 
-        require(
-            receivedMessage[messageHash] == MessageStatus.Failed,
-            "Only failed message"
-        );
+        if (receivedMessage[messageHash] != MessageStatus.Failed) revert MessageNotFailed();
 
-        _receiveMessage(_from, _to, _value,_chainId,_blockNumber, _nonce, _message, messageHash);
+        _receiveMessage(_from, _to, _value, _chainId, _blockNumber, _nonce, _message, messageHash);
     }
 
     function receiveMessage(
@@ -258,30 +229,15 @@ contract Bridge {
         uint256 _blockNumber,
         uint256 _nonce,
         bytes calldata _message
-    ) external payable onlyBridgeSender {
-        require(
-            _nonce == _takeNextReceivedNonce(),
-            "message received out of turn"
-        );
+    ) external payable onlyBridgeSender nonReentrant {
+        if (_nonce != _takeNextReceivedNonce()) revert MessageReceivedOutOfOrder();
 
-        bytes memory encodedMessage = _encodeMessage(
-            _from,
-            _to,
-            _value,
-            _chainId,
-            _blockNumber,
-            _nonce,
-            _message
-        );
-
+        bytes memory encodedMessage = _encodeMessage(_from, _to, _value, _chainId, _blockNumber, _nonce, _message);
         bytes32 messageHash = keccak256(encodedMessage);
 
-        require(
-            receivedMessage[messageHash] == MessageStatus.None,
-            "Message already received"
-        );
+        if (receivedMessage[messageHash] != MessageStatus.None) revert MessageAlreadyReceived();
 
-        _receiveMessage(_from, _to, _value, _chainId,_blockNumber, _nonce, _message, messageHash);
+        _receiveMessage(_from, _to, _value, _chainId, _blockNumber, _nonce, _message, messageHash);
     }
 
     function _receiveMessage(
@@ -294,7 +250,7 @@ contract Bridge {
         bytes calldata _message,
         bytes32 _messageHash
     ) private {
-        require(_to != address(this), "Forbid to call self");
+        if (_to == address(this)) revert ForbiddenSelfCall();
 
         if (receiveMessageDeadline != 0 && _blockNumber + receiveMessageDeadline < block.number) {
             emit RollbackMessage(_messageHash, block.number);
@@ -303,11 +259,7 @@ contract Bridge {
 
         (bool success, bytes memory data) = _to.call{value: _value}(_message);
 
-        if (success) {
-            receivedMessage[_messageHash] = MessageStatus.Success;
-        } else {
-            receivedMessage[_messageHash] = MessageStatus.Failed;
-        }
+        receivedMessage[_messageHash] = success ? MessageStatus.Success : MessageStatus.Failed;
         emit ReceivedMessage(_messageHash, success, data);
     }
 
@@ -320,41 +272,27 @@ contract Bridge {
         bytes calldata _message,
         bytes32 _messageHash
     ) private {
-        require(_to != address(this), "Forbid to call self");
-
-        require(_messageHash == sentMessageQueue.dequeue(), "Wrong rollback message");
+        if (_to == address(this)) revert ForbiddenSelfCall();
+        if (_messageHash != sentMessageQueue.dequeue()) revert RollbackMessageMismatch();
 
         (bool success, bytes memory data) = _from.call{value: _value}("");
-
-        if (success) {
-            rollbackMessage[_messageHash] = MessageStatus.Success;
-        } else {
-            rollbackMessage[_messageHash] = MessageStatus.Failed;
-        }
+        rollbackMessage[_messageHash] = success ? MessageStatus.Success : MessageStatus.Failed;
         emit ReceivedMessageRollback(_messageHash, success, data);
     }
 
     function _takeNextNonce() internal returns (uint256) {
-        uint256 currentNonce = nonce;
-
-        ++nonce;
-
-        return currentNonce;
+        return nonce++;
     }
 
     function _takeNextReceivedNonce() internal returns (uint256) {
-        uint256 currentNonce = receivedNonce;
-
-        ++receivedNonce;
-
-        return currentNonce;
+        return receivedNonce++;
     }
 
     function _encodeMessage(
         address _from,
         address _to,
         uint256 _value,
-        uint256  _chainId,
+        uint256 _chainId,
         uint256 _blockNumber,
         uint256 _nonce,
         bytes calldata _message
