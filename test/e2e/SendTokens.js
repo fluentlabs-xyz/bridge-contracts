@@ -110,7 +110,7 @@ describe("Send tokens test", () => {
       const genesisHash = "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
 
       log(`rollupContract started deploy`);
-      rollupContract = await rollupFactory.connect(owner).deploy(0,0,0,verifier.target, vkKey, genesisHash, "0x0000000000000000000000000000000000000000", 1);
+      rollupContract = await rollupFactory.connect(owner).deploy(0,0,0,verifier.target, vkKey, genesisHash, "0x0000000000000000000000000000000000000000", 1, 100);
       rollupContractAddress = rollupContract.target;
       log("rollupContractAddress:", rollupContractAddress);
       let rollupContractTxReceipt = await rollupContract
