@@ -22,7 +22,7 @@ contract Restaker is OwnableUpgradeable, IRestaker {
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-        _disableInitializers();
+//        _disableInitializers();
     }
 
     function initialize(

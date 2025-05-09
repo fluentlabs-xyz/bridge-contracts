@@ -116,7 +116,7 @@ contract Bridge is ReentrancyGuard {
         uint256 _batchIndex,
         Rollup.BlockCommitment calldata _commitmentBatch,
         address _from,
-        address payable _to,
+        address _to,
         uint256 _value,
         uint256 _chainId,
         uint256 _blockNumber,

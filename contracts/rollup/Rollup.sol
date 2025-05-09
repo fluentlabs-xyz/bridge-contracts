@@ -25,6 +25,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     error InvalidBatchSize(uint256 expected, uint256 provided);
     error InvalidBlockSequence(uint256 index, bytes32 currentHash, bytes32 nextPrevHash);
     error NoLeavesProvided();
+    error NothingToWithdraw();
 
     address public bridge;
 
@@ -51,6 +52,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     mapping(uint256 => bool)    public proofedBatch;
 
     mapping(address => uint256) public challengerDeposit;
+    mapping(address => uint256) public challengerReadyForWithdrawal;
     mapping(uint256 => address) public batchChallenger;
     mapping(uint256 => uint256) public challengeDeadline;
 
@@ -73,6 +75,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
 
     event UpdateVerifier(address oldVerifier, address newVerifier);
     event BatchAccepted(uint256 batchIndex, bytes32 batchRoot);
+    event BatchProofed(uint256 batchIndex);
 
     constructor(
         uint256 _challengeDepositAmount,
@@ -305,7 +308,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
             batchChallenger[_batchIndex] = address(0);
             if (challengerDeposit[challenger] >= challengeDepositAmount) {
                 challengerDeposit[challenger]-= challengeDepositAmount;
-                challenger.call{value: challengeDepositAmount}("");
+                challengerReadyForWithdrawal[challenger] += challengeDepositAmount;
             }
 
             for (uint256 i = 0; i < challengeQueue.length; i++) {
@@ -315,6 +318,18 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
             }
             _cleanQueue();
         }
+
+        emit BatchProofed(_batchIndex);
+    }
+
+    function withdrawChallengeDeposit(address payable challenger) external payable nonReentrant {
+        uint256 amount = challengerReadyForWithdrawal[challenger];
+
+        if (amount == 0) revert NothingToWithdraw();
+
+        challengerReadyForWithdrawal[challenger] = 0;
+
+        challenger.transfer(amount);
     }
 
     function _getPublicValues(bytes32 _blockHash) internal pure returns (bytes memory) {
@@ -428,10 +443,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
                 batchChallenger[i] = address(0);
                 if (challengerDeposit[challenger] >= challengeDepositAmount) {
                     challengerDeposit[challenger] -= challengeDepositAmount;
-                    (bool success, ) = challenger.call{value: challengeDepositAmount}("");
-                    if (!success) {
-                        revert EthTransferFailed(challenger, challengeDepositAmount);
-                    }
+                    challengerReadyForWithdrawal[challenger] += challengeDepositAmount;
                 }
             }
         }
