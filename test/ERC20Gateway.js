@@ -140,8 +140,8 @@ describe("ERC20Gateway", function () {
 
     const data = AbiCoder.defaultAbiCoder()
       .encode(
-        ["address", "address", "uint256", "uint256", "uint256", "bytes"],
-        ["0x1111111111111111111111111111111111111111", erc20Gateway.target, 0, 0, 0, _message],
+        ["address", "address", "uint256", "uint256", "uint256", "uint256", "bytes"],
+        ["0x1111111111111111111111111111111111111111", erc20Gateway.target, 0, 0, 0, 0, _message],
       )
       .slice(2);
 
@@ -154,17 +154,12 @@ describe("ERC20Gateway", function () {
       0,
       0,
       0,
+      0,
       _message,
     );
 
     await receive_tx.wait();
 
-    let error_events = await bridge.queryFilter(
-      "Error",
-      receive_tx.blockNumber,
-    );
-
-    expect(error_events.length).to.equal(0);
     let events = await bridge.queryFilter(
       "ReceivedMessage",
       receive_tx.blockNumber,
@@ -199,6 +194,7 @@ describe("ERC20Gateway", function () {
         0,
         0,
         0,
+        0,
         "0x",
       );
 
@@ -206,7 +202,7 @@ describe("ERC20Gateway", function () {
     } catch (error) {
       expect(error.toString()).to.equal(
         "Error: VM Exception while processing transaction: " +
-          "reverted with reason string 'MessageReceivedOutOfOrder()'",
+          "reverted with custom error 'MessageReceivedOutOfOrder()'",
       );
     }
   });

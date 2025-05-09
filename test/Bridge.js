@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { BigNumber, AbiCoder} = require("ethers");
 const {network} = require("hardhat");
+const {sleep} = require("@nomicfoundation/hardhat-verify/internal/utilities");
 
 describe("Bridge", function () {
   let bridge;
@@ -20,7 +21,7 @@ describe("Bridge", function () {
     const BridgeContract = await ethers.getContractFactory("Bridge");
     const accounts = await hre.ethers.getSigners();
 
-    bridge = await BridgeContract.deploy(accounts[0].address, rollup.target, 2);
+    bridge = await BridgeContract.deploy(accounts[0].address, rollup.target, 10);
     bridge = await bridge.waitForDeployment();
 
     rollup.setBridge(bridge.target);
@@ -163,6 +164,8 @@ describe("Bridge", function () {
     );
 
     await receive_tx.wait();
+
+    console.log(receive_tx);
 
     const events = await bridge.queryFilter(
       "ReceivedMessage",

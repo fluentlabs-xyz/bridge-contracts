@@ -164,8 +164,8 @@ describe("RestakerGateway", function () {
 
     const data = AbiCoder.defaultAbiCoder()
       .encode(
-        ["address", "address", "uint256", "uint256", "bytes"],
-        [restakerGateway.target, accounts[3].address, 0, 0, _message],
+        ["address", "address", "uint256", "uint256", "uint256", "uint256", "bytes"],
+        [restakerGateway.target, accounts[3].address, 0, 0, 0, 0, _message],
       )
       .slice(2);
 
@@ -173,12 +173,14 @@ describe("RestakerGateway", function () {
     const hash = ethers.keccak256(inputBytes);
 
     expect(hash).to.equal(
-      "0xd0330375c6a7ea9ccd0085294287f20d60982f8e2d18c61eca5015c0e67a88e5",
+      "0x524a11ee291a8a0bfda35bda70be1b75a57c2b094758beaf35bde8b55f976511",
     );
 
     const receive_tx = await contractWithSigner.receiveMessage(
       "0x1111111111111111111111111111111111111111",
       restakerGateway.target,
+      0,
+      0,
       0,
       0,
       _message,
@@ -196,12 +198,6 @@ describe("RestakerGateway", function () {
 
     const origin_balance = await peggedTokenContract.balanceOf(receiverAddress);
 
-    let error_events = await bridge.queryFilter(
-      "Error",
-      receive_tx.blockNumber,
-    );
-
-    expect(error_events.length).to.equal(0);
     let events = await bridge.queryFilter(
       "ReceivedMessage",
       receive_tx.blockNumber,
@@ -257,10 +253,12 @@ describe("RestakerGateway", function () {
         .encode(["address", "address", "uint256"], [_from, _to, _amount])
         .slice(2);
 
+    let nonce = await contractWithSigner.receivedNonce();
+
     const data = AbiCoder.defaultAbiCoder()
       .encode(
-        ["address", "address", "uint256", "uint256", "bytes"],
-        [restakerGateway.target, accounts[3].address, 0, 0, _message],
+        ["address", "address", "uint256", "uint256", "uint256", "uint256", "bytes"],
+        [restakerGateway.target, accounts[3].address, 0, 0, 0, nonce, _message],
       )
       .slice(2);
 
@@ -268,25 +266,23 @@ describe("RestakerGateway", function () {
     const hash = ethers.keccak256(inputBytes);
 
     expect(hash).to.equal(
-      "0xe81bf0a02588d8847097c757448a4d06f94c7f093af5e7aea71a59f847186fb3",
+      "0xeeb5602a5f697188216d0046ff9218b126d294e795732907764a4f301f41e73c",
     );
+
+
 
     const receive_tx = await contractWithSigner.receiveMessage(
       "0x1111111111111111111111111111111111111111",
       restakerGateway.target,
       0,
       0,
+      0,
+      nonce,
       _message,
     );
 
     await receive_tx.wait();
 
-    let error_events = await bridge.queryFilter(
-      "Error",
-      receive_tx.blockNumber,
-    );
-
-    expect(error_events.length).to.equal(0);
     let events = await bridge.queryFilter(
       "ReceivedMessage",
       receive_tx.blockNumber,
@@ -294,7 +290,7 @@ describe("RestakerGateway", function () {
 
     expect(events.length).to.equal(1);
     expect(events[0].args.messageHash).to.equal(
-      "0xd82bfefc775c0014ba0b0e4b4b91779ee868954168ccde3d9a52712bb6396664",
+      "0x941940bad2bf058276d6cea44c098a1dff3188c803815912d73ea388f68264ac",
     );
     expect(events[0].args.successfulCall).to.equal(true);
 

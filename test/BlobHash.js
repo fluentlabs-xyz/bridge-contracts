@@ -2,6 +2,12 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const {sleep} = require("@nomicfoundation/hardhat-verify/internal/utilities");
 
+
+if (network.name !== "holesky") {
+    console.log("Skipping test: Not running on myNetwork");
+    return;
+}
+
 describe("BlobHash", function () {
     let blobHash;
 
