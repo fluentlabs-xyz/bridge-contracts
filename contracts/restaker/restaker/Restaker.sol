@@ -9,8 +9,6 @@ import "../interfaces/IEigenPodManager.sol";
 import "./IRestaker.sol";
 import "./IRestakerFacets.sol";
 
-import "hardhat/console.sol";
-
 contract Restaker is OwnableUpgradeable, IRestaker {
     IRestakerFacets internal _facets;
     address internal _signer;
@@ -22,7 +20,7 @@ contract Restaker is OwnableUpgradeable, IRestaker {
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-//        _disableInitializers();
+        //        _disableInitializers();
     }
 
     function initialize(

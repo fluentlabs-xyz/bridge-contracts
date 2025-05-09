@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.0;
 
-import "hardhat/console.sol";
 import {IBridge} from "./interfaces/IBridge.sol";
 import {IERC20Gateway} from "./interfaces/IERC20Gateway.sol";
 import {ERC20PeggedToken} from "./ERC20PeggedToken.sol";
@@ -12,8 +11,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {RestakingPool} from "./restaker/RestakingPool.sol";
 import {IRestakingPool} from "./restaker/interfaces/IRestakingPool.sol";
-
-import "hardhat/console.sol";
 
 contract ERC20Gateway is Ownable, IERC20Gateway {
     struct TokenMetadata {

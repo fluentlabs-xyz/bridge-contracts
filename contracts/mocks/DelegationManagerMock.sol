@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import "../restaker/interfaces/IDelegationManager.sol";
-import "hardhat/console.sol";
 
 contract DelegationManagerMock is IDelegationManager {
     function delegateTo(

@@ -5,8 +5,6 @@ pragma solidity ^0.8.0;
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import "hardhat/console.sol";
-
 contract ERC20TokenFactory is Ownable {
     address public implementation;
 

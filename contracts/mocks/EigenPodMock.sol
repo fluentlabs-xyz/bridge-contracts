@@ -5,7 +5,6 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 import "../restaker/interfaces/IEigenPod.sol";
 import "../restaker/interfaces/IETHPOSDeposit.sol";
-import "hardhat/console.sol";
 
 contract EigenPodMock is Initializable, IEigenPod {
     address public podOwner;

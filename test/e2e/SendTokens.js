@@ -106,11 +106,25 @@ describe("Send tokens test", () => {
 
       let verifier = await VerifierContract.deploy();
       const rollupFactory = await ethers.getContractFactory("Rollup");
-      const vkKey = "0x00612f9d5a388df116872ff70e36bcb86c7e73b1089f32f68fc8e0d0ba7861b7"
-      const genesisHash = "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
+      const vkKey =
+        "0x00612f9d5a388df116872ff70e36bcb86c7e73b1089f32f68fc8e0d0ba7861b7";
+      const genesisHash =
+        "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
 
       log(`rollupContract started deploy`);
-      rollupContract = await rollupFactory.connect(owner).deploy(0,0,0,verifier.target, vkKey, genesisHash, "0x0000000000000000000000000000000000000000", 1, 100);
+      rollupContract = await rollupFactory
+        .connect(owner)
+        .deploy(
+          0,
+          0,
+          0,
+          verifier.target,
+          vkKey,
+          genesisHash,
+          "0x0000000000000000000000000000000000000000",
+          1,
+          100,
+        );
       rollupContractAddress = rollupContract.target;
       log("rollupContractAddress:", rollupContractAddress);
       let rollupContractTxReceipt = await rollupContract
@@ -367,24 +381,28 @@ describe("Send tokens test", () => {
 
     let messageHash = l2BridgeContractSentMessageEvents[0].args.messageHash;
     const depositBackEvent = l2BridgeContractSentMessageEvents[0];
-    console.log("Event: ", sentBackEvent)
+    console.log("Event: ", sentBackEvent);
 
     let depositHash = ethers.keccak256(messageHash);
 
     const commitmentBatch = [
       {
-        previousBlockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-        blockHash:     sendTokensReceipt.blockHash,
+        previousBlockHash:
+          "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        blockHash: sendTokensReceipt.blockHash,
         withdrawalHash: sentBackEvent.args.messageHash,
         depositHash: depositHash,
-      }];
-    const depositsInBlock =    [{
-      blockHash: sendTokensReceipt.blockHash,
-      depositCount: 1
-    }];
+      },
+    ];
+    const depositsInBlock = [
+      {
+        blockHash: sendTokensReceipt.blockHash,
+        depositCount: 1,
+      },
+    ];
 
     let queue = await l1BridgeContract.getQueueSize();
-    console.log("QUEUE: ", queue, messageHash, depositHash)
+    console.log("QUEUE: ", queue, messageHash, depositHash);
 
     let nextBatchIndex = await rollupContract.nextBatchIndex();
 

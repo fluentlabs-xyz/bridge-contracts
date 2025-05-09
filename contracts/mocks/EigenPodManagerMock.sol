@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "../restaker/interfaces/IEigenPodManager.sol";
-import "hardhat/console.sol";
 
 contract EigenPodManagerMock is Initializable, IEigenPodManager {
     bytes internal constant beaconProxyBytecode =

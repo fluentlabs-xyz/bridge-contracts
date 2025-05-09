@@ -1,6 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const {sleep} = require("@nomicfoundation/hardhat-verify/internal/utilities");
+const { sleep } = require("@nomicfoundation/hardhat-verify/internal/utilities");
 
 describe("Restaker", function () {
   let restaker, restakerFacetsContract, eigenPodManagerMockContract;
@@ -61,7 +61,7 @@ describe("Restaker", function () {
 
     const Restaker = await ethers.getContractFactory("Restaker");
     restaker = await Restaker.deploy();
-    console.log("Restaker: ", restaker.target, );
+    console.log("Restaker: ", restaker.target);
   });
 
   it("Init restaker test", async function () {

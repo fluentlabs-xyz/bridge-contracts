@@ -8,8 +8,6 @@ import "@openzeppelin/contracts/utils/StorageSlot.sol";
 import "./interfaces/IProtocolConfig.sol";
 import "./restaker/IRestakerDeployer.sol";
 
-import "hardhat/console.sol";
-
 contract ProtocolConfig is ContextUpgradeable, IProtocolConfig {
     using StorageSlot for bytes32;
 

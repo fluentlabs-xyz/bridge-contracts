@@ -19,7 +19,7 @@ describe("ERC20Gateway", function () {
     bridge = await BridgeContract.deploy(
       accounts[0].address,
       accounts[1].address,
-      0
+      0,
     );
     bridge = await bridge.waitForDeployment();
 
@@ -81,9 +81,7 @@ describe("ERC20Gateway", function () {
     const balance = await token.balanceOf(accounts[0].address);
     const bridge_balance = await token.balanceOf(erc20Gateway.target);
 
-    expect(bridge_balance - origin_bridge_balance).to.be.eql(
-      100n,
-    );
+    expect(bridge_balance - origin_bridge_balance).to.be.eql(100n);
     expect(origin_balance - balance).to.be.eql(100n);
   });
 
@@ -124,9 +122,9 @@ describe("ERC20Gateway", function () {
 
     const _message =
       functionSelector +
-        AbiCoder.defaultAbiCoder()
+      AbiCoder.defaultAbiCoder()
         .encode(
-            ["address", "address", "address", "address", "uint256", "bytes"],
+          ["address", "address", "address", "address", "uint256", "bytes"],
           [
             _token,
             peggedTokenAddress,
@@ -140,8 +138,24 @@ describe("ERC20Gateway", function () {
 
     const data = AbiCoder.defaultAbiCoder()
       .encode(
-        ["address", "address", "uint256", "uint256", "uint256", "uint256", "bytes"],
-        ["0x1111111111111111111111111111111111111111", erc20Gateway.target, 0, 0, 0, 0, _message],
+        [
+          "address",
+          "address",
+          "uint256",
+          "uint256",
+          "uint256",
+          "uint256",
+          "bytes",
+        ],
+        [
+          "0x1111111111111111111111111111111111111111",
+          erc20Gateway.target,
+          0,
+          0,
+          0,
+          0,
+          _message,
+        ],
       )
       .slice(2);
 
@@ -166,9 +180,7 @@ describe("ERC20Gateway", function () {
     );
 
     expect(events.length).to.equal(1);
-    expect(events[0].args.messageHash).to.equal(
-        hash,
-    );
+    expect(events[0].args.messageHash).to.equal(hash);
     expect(events[0].args.successfulCall).to.equal(true);
 
     const new_balance = await hre.ethers.provider.getBalance(receiverAddress);

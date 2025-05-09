@@ -1,5 +1,5 @@
 const { expect } = require("chai");
-const { BigNumber, AbiCoder} = require("ethers");
+const { BigNumber, AbiCoder } = require("ethers");
 
 describe("RestakerGateway", function () {
   let bridge;
@@ -66,9 +66,7 @@ describe("RestakerGateway", function () {
     );
     restakerGateway = await restakerGateway.waitForDeployment();
 
-    const authTx = await tokenFactory.transferOwnership(
-      restakerGateway.target,
-    );
+    const authTx = await tokenFactory.transferOwnership(restakerGateway.target);
     await authTx.wait();
   });
 
@@ -103,15 +101,13 @@ describe("RestakerGateway", function () {
       accounts[0].address,
     );
 
-    expect(origin_account_balance - account_balance - gasUsed).to.be.eql(
-      1000n,
-    );
+    expect(origin_account_balance - account_balance - gasUsed).to.be.eql(1000n);
 
     const token_balance = await mockLiquidityToken.balanceOf(
       restakerGateway.target,
     );
 
-    expect(token_balance -  origin_balance).to.be.eql(1000n);
+    expect(token_balance - origin_balance).to.be.eql(1000n);
   });
 
   it("Unstake tokens test", async function () {
@@ -148,7 +144,7 @@ describe("RestakerGateway", function () {
 
     const _message =
       functionSelector +
-        AbiCoder.defaultAbiCoder()
+      AbiCoder.defaultAbiCoder()
         .encode(
           ["address", "address", "address", "address", "uint256", "bytes"],
           [
@@ -164,7 +160,15 @@ describe("RestakerGateway", function () {
 
     const data = AbiCoder.defaultAbiCoder()
       .encode(
-        ["address", "address", "uint256", "uint256", "uint256", "uint256", "bytes"],
+        [
+          "address",
+          "address",
+          "uint256",
+          "uint256",
+          "uint256",
+          "uint256",
+          "bytes",
+        ],
         [restakerGateway.target, accounts[3].address, 0, 0, 0, 0, _message],
       )
       .slice(2);
@@ -257,7 +261,15 @@ describe("RestakerGateway", function () {
 
     const data = AbiCoder.defaultAbiCoder()
       .encode(
-        ["address", "address", "uint256", "uint256", "uint256", "uint256", "bytes"],
+        [
+          "address",
+          "address",
+          "uint256",
+          "uint256",
+          "uint256",
+          "uint256",
+          "bytes",
+        ],
         [restakerGateway.target, accounts[3].address, 0, 0, 0, nonce, _message],
       )
       .slice(2);
@@ -268,8 +280,6 @@ describe("RestakerGateway", function () {
     expect(hash).to.equal(
       "0xeeb5602a5f697188216d0046ff9218b126d294e795732907764a4f301f41e73c",
     );
-
-
 
     const receive_tx = await contractWithSigner.receiveMessage(
       "0x1111111111111111111111111111111111111111",

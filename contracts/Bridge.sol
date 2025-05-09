@@ -61,11 +61,23 @@ contract Bridge is ReentrancyGuard {
         bytes data
     );
 
-    event ReceivedMessage(bytes32 messageHash, bool successfulCall, bytes returnData);
+    event ReceivedMessage(
+        bytes32 messageHash,
+        bool successfulCall,
+        bytes returnData
+    );
     event RollbackMessage(bytes32 messageHash, uint256 blockNumber);
-    event ReceivedMessageRollback(bytes32 messageHash, bool successfulCall, bytes returnData);
+    event ReceivedMessageRollback(
+        bytes32 messageHash,
+        bool successfulCall,
+        bytes returnData
+    );
 
-    constructor(address _bridgeAuthority, address _rollup, uint256 _receiveMessageDeadline) {
+    constructor(
+        address _bridgeAuthority,
+        address _rollup,
+        uint256 _receiveMessageDeadline
+    ) {
         bridgeAuthority = _bridgeAuthority;
         rollup = _rollup;
         receiveMessageDeadline = _receiveMessageDeadline;
@@ -109,7 +121,16 @@ contract Bridge is ReentrancyGuard {
             sentMessageQueue.enqueue(messageHash);
         }
 
-        emit SentMessage(from, _to, value, block.chainid, block.number, messageNonce, messageHash, _message);
+        emit SentMessage(
+            from,
+            _to,
+            value,
+            block.chainid,
+            block.number,
+            messageNonce,
+            messageHash,
+            _message
+        );
     }
 
     function rollbackMessageWithProof(
@@ -125,22 +146,40 @@ contract Bridge is ReentrancyGuard {
         MerkleProof calldata _rollback_proof,
         MerkleProof calldata _block_proof
     ) external payable nonReentrant {
-        if (!Rollup(rollup).approvedBatch(_batchIndex)) revert InvalidBlockProof();
+        if (!Rollup(rollup).approvedBatch(_batchIndex))
+            revert InvalidBlockProof();
 
-        bytes32 messageHash = keccak256(_encodeMessage(
+        bytes32 messageHash = keccak256(
+            _encodeMessage(
+                _from,
+                _to,
+                _value,
+                _chainId,
+                _blockNumber,
+                _nonce,
+                _message
+            )
+        );
+
+        if (receivedMessage[messageHash] != MessageStatus.None)
+            revert MessageAlreadyReceived();
+
+        _verifyWithdrawal(
+            _batchIndex,
+            _commitmentBatch,
+            _rollback_proof,
+            _block_proof,
+            messageHash
+        );
+        _rollbackMessage(
             _from,
             _to,
             _value,
-            _chainId,
             _blockNumber,
             _nonce,
-            _message
-        ));
-
-        if (receivedMessage[messageHash] != MessageStatus.None) revert MessageAlreadyReceived();
-
-        _verifyWithdrawal(_batchIndex, _commitmentBatch, _rollback_proof, _block_proof, messageHash);
-        _rollbackMessage(_from, _to, _value, _blockNumber, _nonce, _message, messageHash);
+            _message,
+            messageHash
+        );
     }
 
     function receiveMessageWithProof(
@@ -156,23 +195,43 @@ contract Bridge is ReentrancyGuard {
         MerkleProof calldata _withdrawal_proof,
         MerkleProof calldata _block_proof
     ) external payable nonReentrant {
-        if (_nonce != _takeNextReceivedNonce()) revert MessageReceivedOutOfOrder();
-        if (!Rollup(rollup).approvedBatch(_batchIndex)) revert InvalidBlockProof();
+        if (_nonce != _takeNextReceivedNonce())
+            revert MessageReceivedOutOfOrder();
+        if (!Rollup(rollup).approvedBatch(_batchIndex))
+            revert InvalidBlockProof();
 
-        bytes32 messageHash = keccak256(_encodeMessage(
+        bytes32 messageHash = keccak256(
+            _encodeMessage(
+                _from,
+                _to,
+                _value,
+                _chainId,
+                _blockNumber,
+                _nonce,
+                _message
+            )
+        );
+
+        if (receivedMessage[messageHash] != MessageStatus.None)
+            revert MessageAlreadyReceived();
+
+        _verifyWithdrawal(
+            _batchIndex,
+            _commitmentBatch,
+            _withdrawal_proof,
+            _block_proof,
+            messageHash
+        );
+        _receiveMessage(
             _from,
             _to,
             _value,
             _chainId,
             _blockNumber,
             _nonce,
-            _message
-        ));
-
-        if (receivedMessage[messageHash] != MessageStatus.None) revert MessageAlreadyReceived();
-
-        _verifyWithdrawal(_batchIndex, _commitmentBatch, _withdrawal_proof, _block_proof, messageHash);
-        _receiveMessage(_from, _to, _value, _chainId, _blockNumber, _nonce, _message, messageHash);
+            _message,
+            messageHash
+        );
     }
 
     function _verifyWithdrawal(
@@ -184,11 +243,13 @@ contract Bridge is ReentrancyGuard {
     ) private {
         bool blockValid = MerkleTree.verifyMerkleProof(
             Rollup(rollup).acceptedBatchHash(_batchIndex),
-            keccak256(abi.encodePacked(
-                _commitmentBatch.previousBlockHash,
-                _commitmentBatch.blockHash,
-                _commitmentBatch.withdrawalHash,
-                _commitmentBatch.depositHash)
+            keccak256(
+                abi.encodePacked(
+                    _commitmentBatch.previousBlockHash,
+                    _commitmentBatch.blockHash,
+                    _commitmentBatch.withdrawalHash,
+                    _commitmentBatch.depositHash
+                )
             ),
             _block_proof.nonce,
             _block_proof.proof
@@ -213,12 +274,30 @@ contract Bridge is ReentrancyGuard {
         uint256 _nonce,
         bytes calldata _message
     ) external payable nonReentrant {
-        bytes memory encodedMessage = _encodeMessage(_from, _to, _value, _chainId, _blockNumber, _nonce, _message);
+        bytes memory encodedMessage = _encodeMessage(
+            _from,
+            _to,
+            _value,
+            _chainId,
+            _blockNumber,
+            _nonce,
+            _message
+        );
         bytes32 messageHash = keccak256(encodedMessage);
 
-        if (receivedMessage[messageHash] != MessageStatus.Failed) revert MessageNotFailed();
+        if (receivedMessage[messageHash] != MessageStatus.Failed)
+            revert MessageNotFailed();
 
-        _receiveMessage(_from, _to, _value, _chainId, _blockNumber, _nonce, _message, messageHash);
+        _receiveMessage(
+            _from,
+            _to,
+            _value,
+            _chainId,
+            _blockNumber,
+            _nonce,
+            _message,
+            messageHash
+        );
     }
 
     function receiveMessage(
@@ -230,14 +309,33 @@ contract Bridge is ReentrancyGuard {
         uint256 _nonce,
         bytes calldata _message
     ) external payable onlyBridgeSender nonReentrant {
-        if (_nonce != _takeNextReceivedNonce()) revert MessageReceivedOutOfOrder();
+        if (_nonce != _takeNextReceivedNonce())
+            revert MessageReceivedOutOfOrder();
 
-        bytes memory encodedMessage = _encodeMessage(_from, _to, _value, _chainId, _blockNumber, _nonce, _message);
+        bytes memory encodedMessage = _encodeMessage(
+            _from,
+            _to,
+            _value,
+            _chainId,
+            _blockNumber,
+            _nonce,
+            _message
+        );
         bytes32 messageHash = keccak256(encodedMessage);
 
-        if (receivedMessage[messageHash] != MessageStatus.None) revert MessageAlreadyReceived();
+        if (receivedMessage[messageHash] != MessageStatus.None)
+            revert MessageAlreadyReceived();
 
-        _receiveMessage(_from, _to, _value, _chainId, _blockNumber, _nonce, _message, messageHash);
+        _receiveMessage(
+            _from,
+            _to,
+            _value,
+            _chainId,
+            _blockNumber,
+            _nonce,
+            _message,
+            messageHash
+        );
     }
 
     function _receiveMessage(
@@ -252,14 +350,19 @@ contract Bridge is ReentrancyGuard {
     ) private {
         if (_to == address(this)) revert ForbiddenSelfCall();
 
-        if (receiveMessageDeadline != 0 && _blockNumber + receiveMessageDeadline < block.number) {
+        if (
+            receiveMessageDeadline != 0 &&
+            _blockNumber + receiveMessageDeadline < block.number
+        ) {
             emit RollbackMessage(_messageHash, block.number);
             return;
         }
 
         (bool success, bytes memory data) = _to.call{value: _value}(_message);
 
-        receivedMessage[_messageHash] = success ? MessageStatus.Success : MessageStatus.Failed;
+        receivedMessage[_messageHash] = success
+            ? MessageStatus.Success
+            : MessageStatus.Failed;
         emit ReceivedMessage(_messageHash, success, data);
     }
 
@@ -273,10 +376,13 @@ contract Bridge is ReentrancyGuard {
         bytes32 _messageHash
     ) private {
         if (_to == address(this)) revert ForbiddenSelfCall();
-        if (_messageHash != sentMessageQueue.dequeue()) revert RollbackMessageMismatch();
+        if (_messageHash != sentMessageQueue.dequeue())
+            revert RollbackMessageMismatch();
 
         (bool success, bytes memory data) = _from.call{value: _value}("");
-        rollbackMessage[_messageHash] = success ? MessageStatus.Success : MessageStatus.Failed;
+        rollbackMessage[_messageHash] = success
+            ? MessageStatus.Success
+            : MessageStatus.Failed;
         emit ReceivedMessageRollback(_messageHash, success, data);
     }
 
@@ -297,6 +403,15 @@ contract Bridge is ReentrancyGuard {
         uint256 _nonce,
         bytes calldata _message
     ) internal pure returns (bytes memory) {
-        return abi.encode(_from, _to, _value, _chainId, _blockNumber, _nonce, _message);
+        return
+            abi.encode(
+                _from,
+                _to,
+                _value,
+                _chainId,
+                _blockNumber,
+                _nonce,
+                _message
+            );
     }
 }

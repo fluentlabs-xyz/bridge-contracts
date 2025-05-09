@@ -8,8 +8,6 @@ import "./IRestakerDeployer.sol";
 import "./IRestaker.sol";
 import "./IRestakerFacets.sol";
 
-import "hardhat/console.sol";
-
 contract RestakerDeployer is IRestakerDeployer {
     bytes public constant BEACON_PROXY_BYTECODE =
         type(BeaconProxy).creationCode;

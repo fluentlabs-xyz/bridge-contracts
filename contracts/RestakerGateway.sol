@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.20;
 
-import "hardhat/console.sol";
 import {IBridge} from "./interfaces/IBridge.sol";
 import {IERC20Gateway} from "./interfaces/IERC20Gateway.sol";
 import {ERC20PeggedToken} from "./ERC20PeggedToken.sol";

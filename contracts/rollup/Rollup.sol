@@ -4,7 +4,6 @@ import "../interfaces/IRollupVerifier.sol";
 import "../interfaces/IVerifier.sol";
 import "../restaker/libraries/BlobHashGetter.sol";
 import {Bridge} from "../Bridge.sol";
-import         "hardhat/console.sol";
 
 pragma solidity ^0.8.0;
 
@@ -23,7 +22,11 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     error BlockHashMismatch(bytes32 expected, bytes32 provided);
     error InvalidBatchIndex(uint256 expected, uint256 provided);
     error InvalidBatchSize(uint256 expected, uint256 provided);
-    error InvalidBlockSequence(uint256 index, bytes32 currentHash, bytes32 nextPrevHash);
+    error InvalidBlockSequence(
+        uint256 index,
+        bytes32 currentHash,
+        bytes32 nextPrevHash
+    );
     error NoLeavesProvided();
     error NothingToWithdraw();
 
@@ -49,15 +52,15 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
 
     mapping(uint256 => bytes32) public acceptedBatchHash;
     mapping(uint256 => uint256) public acceptedBlock;
-    mapping(uint256 => bool)    public proofedBatch;
+    mapping(uint256 => bool) public proofedBatch;
 
     mapping(address => uint256) public challengerDeposit;
     mapping(address => uint256) public challengerReadyForWithdrawal;
     mapping(uint256 => address) public batchChallenger;
     mapping(uint256 => uint256) public challengeDeadline;
 
-
-    bytes32 public constant ZERO_BYTES_HASH = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
+    bytes32 public constant ZERO_BYTES_HASH =
+        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
 
     IVerifier private verifier;
 
@@ -100,9 +103,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         acceptDepositDeadline = _acceptDepositDeadline;
     }
 
-    function calculateBlobHash(
-        bytes memory blob
-    ) public returns (bytes32) {
+    function calculateBlobHash(bytes memory blob) public returns (bytes32) {
         bytes32 hash = sha256(blob);
 
         hash &= 0x00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
@@ -124,12 +125,14 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     ) public view returns (bytes32) {
         bytes memory leafs = new bytes(commitmentBatch.length * 32);
 
-        for(uint256 i = 0; i < commitmentBatch.length; ++i) {
-            bytes32 hash = keccak256(abi.encodePacked(
-                commitmentBatch[i].previousBlockHash,
-                commitmentBatch[i].blockHash,
-                commitmentBatch[i].withdrawalHash,
-                commitmentBatch[i].depositHash)
+        for (uint256 i = 0; i < commitmentBatch.length; ++i) {
+            bytes32 hash = keccak256(
+                abi.encodePacked(
+                    commitmentBatch[i].previousBlockHash,
+                    commitmentBatch[i].blockHash,
+                    commitmentBatch[i].withdrawalHash,
+                    commitmentBatch[i].depositHash
+                )
             );
             assembly {
                 mstore(add(add(leafs, 32), mul(i, 32)), hash)
@@ -144,16 +147,23 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         DepositsInBlock calldata depositInBlock
     ) private returns (bool) {
         if (_commitmentBatch.blockHash != depositInBlock.blockHash) {
-            revert BlockHashMismatch(_commitmentBatch.blockHash, depositInBlock.blockHash);
+            revert BlockHashMismatch(
+                _commitmentBatch.blockHash,
+                depositInBlock.blockHash
+            );
         }
 
-        bytes32[] memory depositIds = new bytes32[](depositInBlock.depositCount);
-        for(uint256 i = 0; i < depositInBlock.depositCount; ++i) {
+        bytes32[] memory depositIds = new bytes32[](
+            depositInBlock.depositCount
+        );
+        for (uint256 i = 0; i < depositInBlock.depositCount; ++i) {
             bytes32 depositId = Bridge(bridge).popSentMessage();
-            depositIds[i]= depositId;
+            depositIds[i] = depositId;
         }
 
-        return keccak256(abi.encodePacked(depositIds)) == _commitmentBatch.depositHash;
+        return
+            keccak256(abi.encodePacked(depositIds)) ==
+            _commitmentBatch.depositHash;
     }
 
     function acceptNextBatch(
@@ -174,50 +184,83 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         }
 
         if (_commitmentBatch[0].previousBlockHash != lastBlockHashAccepted) {
-            revert WrongPrevBlockHash(lastBlockHashAccepted, _commitmentBatch[0].previousBlockHash);
+            revert WrongPrevBlockHash(
+                lastBlockHashAccepted,
+                _commitmentBatch[0].previousBlockHash
+            );
         }
 
         uint256 depositIndex = 0;
         uint256 queueSize = Bridge(bridge).getQueueSize();
 
-        for(uint256 i = 0; i < batchSize - 1; ++i) {
-            if (_commitmentBatch[i].blockHash != _commitmentBatch[i + 1].previousBlockHash) {
-                revert InvalidBlockSequence(i, _commitmentBatch[i].blockHash, _commitmentBatch[i + 1].previousBlockHash);
+        for (uint256 i = 0; i < batchSize - 1; ++i) {
+            if (
+                _commitmentBatch[i].blockHash !=
+                _commitmentBatch[i + 1].previousBlockHash
+            ) {
+                revert InvalidBlockSequence(
+                    i,
+                    _commitmentBatch[i].blockHash,
+                    _commitmentBatch[i + 1].previousBlockHash
+                );
             }
             if (_commitmentBatch[i].depositHash != ZERO_BYTES_HASH) {
-                if (!_checkDeposit(_commitmentBatch[i], depositsInBlocks[depositIndex])) {
-                    revert DepositVerificationFailed(_commitmentBatch[i].blockHash);
+                if (
+                    !_checkDeposit(
+                        _commitmentBatch[i],
+                        depositsInBlocks[depositIndex]
+                    )
+                ) {
+                    revert DepositVerificationFailed(
+                        _commitmentBatch[i].blockHash
+                    );
                 }
                 depositIndex += 1;
             }
         }
         if (_commitmentBatch[batchSize - 1].depositHash != ZERO_BYTES_HASH) {
-            if (!_checkDeposit(_commitmentBatch[batchSize -1], depositsInBlocks[depositIndex])) {
-                revert DepositVerificationFailed(_commitmentBatch[batchSize - 1].blockHash);
+            if (
+                !_checkDeposit(
+                    _commitmentBatch[batchSize - 1],
+                    depositsInBlocks[depositIndex]
+                )
+            ) {
+                revert DepositVerificationFailed(
+                    _commitmentBatch[batchSize - 1].blockHash
+                );
             }
         }
 
         if (Bridge(bridge).getQueueSize() == 0) {
             lastDepositAcceptedBlockNumber = 0;
-        } else if (queueSize > Bridge(bridge).getQueueSize() || queueSize != 0 && lastDepositAcceptedBlockNumber == 0){
+        } else if (
+            queueSize > Bridge(bridge).getQueueSize() ||
+            (queueSize != 0 && lastDepositAcceptedBlockNumber == 0)
+        ) {
             lastDepositAcceptedBlockNumber = block.number;
-        } else if (lastDepositAcceptedBlockNumber + acceptDepositDeadline < block.number ) {
-            revert AcceptDepositDeadlineExceeded(lastDepositAcceptedBlockNumber + acceptDepositDeadline, block.number);
+        } else if (
+            lastDepositAcceptedBlockNumber + acceptDepositDeadline <
+            block.number
+        ) {
+            revert AcceptDepositDeadlineExceeded(
+                lastDepositAcceptedBlockNumber + acceptDepositDeadline,
+                block.number
+            );
         }
 
-//        TODO: NOT IMPLEMENTED YET
-//        bytes32 requiredBlobHash;
-//        if (daCheck) {
-//            requiredBlobHash = calculateBlobHash();
-//            bytes32 submittedBlobHash = BlobHashGetter.getBlobHash(
-//                blobHashGetter,
-//                0
-//            );
-//            require(
-//                submittedBlobHash == requiredBlobHash,
-//                "submitted wrong blob to da"
-//            );
-//        }
+        //        TODO: NOT IMPLEMENTED YET
+        //        bytes32 requiredBlobHash;
+        //        if (daCheck) {
+        //            requiredBlobHash = calculateBlobHash();
+        //            bytes32 submittedBlobHash = BlobHashGetter.getBlobHash(
+        //                blobHashGetter,
+        //                0
+        //            );
+        //            require(
+        //                submittedBlobHash == requiredBlobHash,
+        //                "submitted wrong blob to da"
+        //            );
+        //        }
 
         bytes32 batchRoot = calculateBatchRoot(_commitmentBatch);
         acceptedBatchHash[_batchIndex] = batchRoot;
@@ -259,10 +302,8 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
 
         return
             _acceptedBatch(_batchIndex) &&
-            (
-                block.number - blockAcceptBlockNumber > approveBlockCount ||
-                proofedBatch[_batchIndex]
-            );
+            (block.number - blockAcceptBlockNumber > approveBlockCount ||
+                proofedBatch[_batchIndex]);
     }
 
     function challengeBatch(uint256 _batchIndex) external payable nonReentrant {
@@ -280,7 +321,10 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         }
 
         if (msg.value < challengeDepositAmount) {
-            revert InsufficientChallengeDeposit(challengeDepositAmount, msg.value);
+            revert InsufficientChallengeDeposit(
+                challengeDepositAmount,
+                msg.value
+            );
         }
 
         challengerDeposit[msg.sender] += msg.value;
@@ -295,11 +339,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     ) external nonReentrant {
         bytes32 blockHash = acceptedBatchHash[_batchIndex];
 
-        verifier.verifyProof(
-            programVKey,
-            _getPublicValues(blockHash),
-            _proof
-        );
+        verifier.verifyProof(programVKey, _getPublicValues(blockHash), _proof);
 
         proofedBatch[_batchIndex] = true;
         address challenger = batchChallenger[_batchIndex];
@@ -307,8 +347,10 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         if (challenger != address(0)) {
             batchChallenger[_batchIndex] = address(0);
             if (challengerDeposit[challenger] >= challengeDepositAmount) {
-                challengerDeposit[challenger]-= challengeDepositAmount;
-                challengerReadyForWithdrawal[challenger] += challengeDepositAmount;
+                challengerDeposit[challenger] -= challengeDepositAmount;
+                challengerReadyForWithdrawal[
+                    challenger
+                ] += challengeDepositAmount;
             }
 
             for (uint256 i = 0; i < challengeQueue.length; i++) {
@@ -322,7 +364,9 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         emit BatchProofed(_batchIndex);
     }
 
-    function withdrawChallengeDeposit(address payable challenger) external payable nonReentrant {
+    function withdrawChallengeDeposit(
+        address payable challenger
+    ) external payable nonReentrant {
         uint256 amount = challengerReadyForWithdrawal[challenger];
 
         if (amount == 0) revert NothingToWithdraw();
@@ -332,8 +376,9 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         challenger.transfer(amount);
     }
 
-    function _getPublicValues(bytes32 _blockHash) internal pure returns (bytes memory) {
-
+    function _getPublicValues(
+        bytes32 _blockHash
+    ) internal pure returns (bytes memory) {
         bytes memory publicValues = new bytes(40);
 
         publicValues[0] = 0x20;
@@ -421,7 +466,9 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         }
     }
 
-    function forceRevertBatch(uint256 _revertedBatchIndex) external onlyOwner nonReentrant {
+    function forceRevertBatch(
+        uint256 _revertedBatchIndex
+    ) external onlyOwner nonReentrant {
         if (!_acceptedBatch(_revertedBatchIndex)) {
             revert BatchNotAccepted(_revertedBatchIndex);
         }
@@ -443,7 +490,9 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
                 batchChallenger[i] = address(0);
                 if (challengerDeposit[challenger] >= challengeDepositAmount) {
                     challengerDeposit[challenger] -= challengeDepositAmount;
-                    challengerReadyForWithdrawal[challenger] += challengeDepositAmount;
+                    challengerReadyForWithdrawal[
+                        challenger
+                    ] += challengeDepositAmount;
                 }
             }
         }

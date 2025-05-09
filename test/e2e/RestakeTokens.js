@@ -421,9 +421,23 @@ describe("Contract deployment and interaction", function () {
 
       let verifier = await VerifierContract.deploy();
       const rollupFactory = await ethers.getContractFactory("Rollup");
-      const vkKey = "0x00612f9d5a388df116872ff70e36bcb86c7e73b1089f32f68fc8e0d0ba7861b7"
-      const genesisHash = "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
-      rollupContract = await rollupFactory.connect(owner).deploy(0,0,0,verifier.target, vkKey, genesisHash, "0x0000000000000000000000000000000000000000", 1, 100);
+      const vkKey =
+        "0x00612f9d5a388df116872ff70e36bcb86c7e73b1089f32f68fc8e0d0ba7861b7";
+      const genesisHash =
+        "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
+      rollupContract = await rollupFactory
+        .connect(owner)
+        .deploy(
+          0,
+          0,
+          0,
+          verifier.target,
+          vkKey,
+          genesisHash,
+          "0x0000000000000000000000000000000000000000",
+          1,
+          100,
+        );
       rollupAddress = rollupContract.target;
       log("rollupAddress:", rollupAddress);
     }
@@ -623,7 +637,7 @@ describe("Contract deployment and interaction", function () {
 
     const sentMessageEvents = await l1BridgeContract.queryFilter(
       "SentMessage",
-        sendBackReceipt.blockNumber,
+      sendBackReceipt.blockNumber,
     );
 
     expect(sentMessageEvents.length).to.equal(1);
@@ -639,70 +653,73 @@ describe("Contract deployment and interaction", function () {
 
     const commitmentBatch = [
       {
-        previousBlockHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-        blockHash:     sendRestakedTokensTxReceipt.blockHash,
+        previousBlockHash:
+          "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        blockHash: sendRestakedTokensTxReceipt.blockHash,
         withdrawalHash: sentMessageEvent.args.messageHash,
-        depositHash: "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-      }];
-    const depositsInBlock =    [];
+        depositHash:
+          "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      },
+    ];
+    const depositsInBlock = [];
 
     let nextBatchIndex = await rollupContract.nextBatchIndex();
-    console.log(
-        nextBatchIndex, depositsInBlock, commitmentBatch
-    )
+    console.log(nextBatchIndex, depositsInBlock, commitmentBatch);
     const acceptNextProofTx = await rollupContract.acceptNextBatch(
-        nextBatchIndex,
-        commitmentBatch,
-        depositsInBlock,
-        {
-          gasLimit: 30_000_000,
-        },
+      nextBatchIndex,
+      commitmentBatch,
+      depositsInBlock,
+      {
+        gasLimit: 30_000_000,
+      },
     );
     await acceptNextProofTx.wait();
 
     const receiveMessageWithProofTx =
       await l2BridgeContract.receiveMessageWithProof(
-          nextBatchIndex,
-          commitmentBatch[0],
-          sentMessageEvent.args["sender"],
-          sentMessageEvent.args["to"],
-          sentMessageEvent.args["value"].toString(),
-          sentMessageEvent.args["chainId"].toString(),
-          sentMessageEvent.args["blockNumber"].toString(),
-          sentMessageEvent.args["nonce"].toString(),
-          sentMessageEvent.args["data"],
-          {
-            nonce: 0,
-            proof: "0x",
-          },
-          {
-            nonce: 0,
-            proof: "0x",
-          },
-          {
-            gasLimit: 30_000_000,
-          },
+        nextBatchIndex,
+        commitmentBatch[0],
+        sentMessageEvent.args["sender"],
+        sentMessageEvent.args["to"],
+        sentMessageEvent.args["value"].toString(),
+        sentMessageEvent.args["chainId"].toString(),
+        sentMessageEvent.args["blockNumber"].toString(),
+        sentMessageEvent.args["nonce"].toString(),
+        sentMessageEvent.args["data"],
+        {
+          nonce: 0,
+          proof: "0x",
+        },
+        {
+          nonce: 0,
+          proof: "0x",
+        },
+        {
+          gasLimit: 30_000_000,
+        },
       );
     let receiveBackMessage = await receiveMessageWithProofTx.wait();
 
-
-
     const bridgeBackEvents = await l2BridgeContract.queryFilter(
       "ReceivedMessage",
-        receiveBackMessage.blockNumber,
+      receiveBackMessage.blockNumber,
     );
     const gatewayBackEvents = await l2RestakerGatewayContract.queryFilter(
       "TokensUnstaked",
-        receiveBackMessage.blockNumber,
+      receiveBackMessage.blockNumber,
     );
 
     const events = await l2BridgeContract.queryFilter(
-        "RollbackMessage",
-        receiveBackMessage.blockNumber,
+      "RollbackMessage",
+      receiveBackMessage.blockNumber,
     );
 
-
-    console.log(receiveBackMessage, bridgeBackEvents, gatewayBackEvents, events);
+    console.log(
+      receiveBackMessage,
+      bridgeBackEvents,
+      gatewayBackEvents,
+      events,
+    );
 
     log("bridgeBackEvents:", bridgeBackEvents);
     expect(bridgeBackEvents.length).to.equal(1);
