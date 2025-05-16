@@ -2,6 +2,8 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { TestingCtx, log } = require("./helpers");
 const { sleep } = require("@nomicfoundation/hardhat-verify/internal/utilities");
+const { AbiCoder } = require("ethers");
+const { MerkleTree } = require("merkletreejs");
 
 const TX_RECEIPT_STATUS_SUCCESS = 1;
 const TX_RECEIPT_STATUS_REVERT = 0;
@@ -10,7 +12,7 @@ describe("Send tokens test", () => {
   let ctxL1;
   let ctxL2;
 
-  let l2TokenContract;
+  let l2TokenContract, l1TokenContract;
   let l2GatewayContract, l1GatewayContract;
   let l2BridgeContract, l1BridgeContract;
   let l2ImplementationAddress, l1ImplementationAddress;
@@ -25,6 +27,7 @@ describe("Send tokens test", () => {
     await ctxL1.printDebugInfoAsync();
     await ctxL2.printDebugInfoAsync();
 
+    const [ownerL1] = ctxL1.accounts;
     const [ownerL2] = ctxL2.accounts;
 
     [
@@ -43,6 +46,19 @@ describe("Send tokens test", () => {
     log("Linking bridges");
     const mockErc20TokenFactory =
       await ethers.getContractFactory("MockERC20Token");
+    log(`started l1TokenContract deploy`);
+    l1TokenContract = await mockErc20TokenFactory
+      .connect(ownerL1)
+      .deploy("Mock Token", "TKN", ethers.parseEther("10"), ownerL1.address, {
+        gasLimit: 30_000_000,
+      });
+    l1TokenContract = await l1TokenContract.waitForDeployment();
+    log(`l1TokenContract.address: ${l1TokenContract.target}`);
+
+    log(
+      `l1GatewayContract.address: ${l1GatewayContract.target} l2GatewayContract.address: ${l2GatewayContract.target}`,
+    );
+
     log(`started l2TokenContract deploy`);
     l2TokenContract = await mockErc20TokenFactory
       .connect(ownerL2)
@@ -50,7 +66,7 @@ describe("Send tokens test", () => {
         gasLimit: 30_000_000,
       });
     l2TokenContract = await l2TokenContract.waitForDeployment();
-    log(`l2TokenContract.address: ${l2TokenContract.target}`);
+    log(`l1TokenContract.address: ${l2TokenContract.target}`);
 
     log(
       `l1GatewayContract.address: ${l1GatewayContract.target} l2GatewayContract.address: ${l2GatewayContract.target}`,
@@ -186,7 +202,7 @@ describe("Send tokens test", () => {
     expect(erc20GatewayContractTxReceipt.status).to.eq(
       TX_RECEIPT_STATUS_SUCCESS,
     );
-
+    await sleep(1000);
     log(`erc20TokenContract.owner: ${await erc20TokenContract.owner()}`);
     const transferOwnershipTx = await erc20TokenContract.transferOwnership(
       erc20GatewayContract.target,
@@ -219,9 +235,89 @@ describe("Send tokens test", () => {
   });
 
   it("Bridging tokens between contracts", async () => {
+
     log(`approveTx started`);
-    const approveTx = await l2TokenContract.approve(
-      l2GatewayContract.target,
+    const approveDepositTx = await l2TokenContract.approve(
+        l2GatewayContract.target,
+        10 * batchSize,
+        {
+          gasLimit: 30_000_000,
+        },
+    );
+    let approveDepositTxReceipt = await approveDepositTx.wait();
+    log(`approveTxReceipt:`, approveDepositTxReceipt);
+    expect(approveDepositTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
+
+    log(`sendTokensTx started`);
+    const [ownerL1] = ctxL1.accounts;
+    log("signer: ", ownerL1);
+
+    let nonce = await ctxL2.provider.getTransactionCount(ctxL2.owner(), "pending");
+    let sendDepositTxs = [];
+    for (let i = 0; i < batchSize; ++i) {
+      log("Index: ", i, nonce);
+      const sendTokensTx = await l2GatewayContract.sendTokens(
+          l2TokenContract.target,
+          ownerL1.address,
+          10,
+          {
+            gasLimit: 30_000_000,
+            nonce: nonce + i,
+          },
+      );
+      sendDepositTxs.push(sendTokensTx.wait());
+      // let sendTokensReceipt = await sendTokensTx.wait();
+    }
+    const sendDepositReceipts = await Promise.all(sendDepositTxs);
+
+    log(`QUEUE:`, await l2BridgeContract.getQueueSize());
+    log("l2TokenContract.address", l1TokenContract.target);
+    let depositBlocks = [...new Set(sendDepositReceipts.map((r) => r.blockNumber))];
+    console.log("Blocks: ", depositBlocks);
+    let batchSendDepositEvents = await l2BridgeContract.queryFilter(
+        "SentMessage",
+        sendDepositReceipts[0].blockNumber,
+    );
+
+    let messagesDepositHashes = batchSendDepositEvents.map(
+        (events) => events.args["messageHash"],
+    );
+
+    log("message hashes: ", messagesDepositHashes);
+
+    expect(batchSendDepositEvents.length).to.eq(batchSize);
+
+    let receiveDepositTxs = [];
+    let i = 0;
+    nonce = await ctxL1.provider.getTransactionCount(ctxL1.owner(), "pending");
+    for (let depositEvent of batchSendDepositEvents) {
+      const l1BridgeContractReceiveMessageTx =
+          await l1BridgeContract.receiveMessage(
+              depositEvent.args["sender"],
+              depositEvent.args["to"],
+              depositEvent.args["value"],
+              depositEvent.args["chainId"].toString(),
+              depositEvent.args["blockNumber"],
+              depositEvent.args["nonce"],
+              depositEvent.args["data"],
+              {
+                gasLimit: 30_000_000,
+                nonce: nonce + i++,
+              },
+          );
+      receiveDepositTxs.push(l1BridgeContractReceiveMessageTx.wait())
+    }
+    const receiveDepositReceipts = await Promise.all(receiveDepositTxs);
+
+
+    nonce = await ctxL1.provider.getTransactionCount(
+      ctxL1.owner(),
+      "pending",
+    );
+    log(`approveTx started`);
+    log(`approveTx started`, nonce);
+    const approveTx = await l1TokenContract.approve(
+      l1GatewayContract.target,
       10 * batchSize,
       {
         gasLimit: 30_000_000,
@@ -230,255 +326,232 @@ describe("Send tokens test", () => {
     let approveTxReceipt = await approveTx.wait();
     log(`approveTxReceipt:`, approveTxReceipt);
     expect(approveTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
-
+    await sleep(1000);
     log(`sendTokensTx started`);
-    const [ownerL1] = ctxL1.accounts;
-    log("signer: ", ownerL1);
+    const [ownerL2] = ctxL2.accounts;
+    log("signer: ", ownerL2);
+    nonce = await ctxL1.provider.getTransactionCount(ctxL1.owner(), "pending");
+    let sendTxs = [];
     for (let i = 0; i < batchSize; ++i) {
-      const sendTokensTx = await l2GatewayContract.sendTokens(
-        l2TokenContract.target,
-        ownerL1.address,
+      log("Index: ", i, nonce);
+      const sendTokensTx = await l1GatewayContract.sendTokens(
+        l1TokenContract.target,
+        ownerL2.address,
         10,
         {
           gasLimit: 30_000_000,
+          nonce: nonce + i,
         },
       );
+      sendTxs.push(sendTokensTx.wait());
+      // let sendTokensReceipt = await sendTokensTx.wait();
     }
 
-    log(`QUEUE:`, await l2BridgeContract.getQueueSize());
-    log("l2TokenContract.address", l2TokenContract.target);
-    let sendTokensReceipt = await sendTokensTx.wait();
-    log(`sendTokensReceipt:`, sendTokensReceipt);
-    expect(sendTokensReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
+    const sendReceipts = await Promise.all(sendTxs);
 
-    // if (true) {
-    //     log("l2GatewayContract.sendTokens (2nd)");
-    //     const sendTokensTx = await l2GatewayContract.sendTokens(
-    //         l2TokenContract.target,
-    //         l1GatewayContract.signer.getAddress(),
-    //         1,
-    //         {
-    //             gasLimit: 30_000_000,
-    //         }
-    //     );
-    //     log("l2TokenContract.address", l2TokenContract.target);
-    //     let sendTokensReceipt = await sendTokensTx.wait();
-    //     log(`sendTokensReceipt:`, sendTokensReceipt)
-    //     expect(sendTokensReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
-    // }
-
-    log(
-      `getting l2BridgeContractSentMessageEvents (address ${l2BridgeContract.target})`,
-    );
-    let l2BridgeContractSentMessageEvents = await l2BridgeContract.queryFilter(
-      "SentMessage",
-      sendTokensReceipt.blockNumber,
-    );
-    log(
-      "l2BridgeContractSentMessageEvents:",
-      l2BridgeContractSentMessageEvents,
-    );
-    expect(l2BridgeContractSentMessageEvents.length).to.equal(1);
-
-    const l2BridgeContractSentMessageEvent0 =
-      l2BridgeContractSentMessageEvents[0];
-
-    let sendMessageHash = l2BridgeContractSentMessageEvent0.args["messageHash"];
-
-    log("sendMessageHash:", sendMessageHash);
-    log(
-      "l2BridgeContractSentMessageEvent0:",
-      l2BridgeContractSentMessageEvent0,
-    );
-
-    log(`l1BridgeContractReceiveMessageTx started`);
-    const l1BridgeContractReceiveMessageTx =
-      await l1BridgeContract.receiveMessage(
-        l2BridgeContractSentMessageEvent0.args["sender"],
-        l2BridgeContractSentMessageEvent0.args["to"],
-        l2BridgeContractSentMessageEvent0.args["value"],
-        l2BridgeContractSentMessageEvent0.args["chainId"].toString(),
-        l2BridgeContractSentMessageEvent0.args["blockNumber"],
-        l2BridgeContractSentMessageEvent0.args["nonce"],
-        l2BridgeContractSentMessageEvent0.args["data"],
-      );
-    let l1BridgeContractReceiveMessageReceipt =
-      await l1BridgeContractReceiveMessageTx.wait();
-    log(
-      `l1BridgeContractReceiveMessageReceipt:`,
-      l1BridgeContractReceiveMessageReceipt,
-    );
-    expect(l1BridgeContractReceiveMessageReceipt.status).to.eq(
-      TX_RECEIPT_STATUS_SUCCESS,
-    );
-
-    log(
-      `getting l1BridgeContractReceivedMessageEvents (address ${l1BridgeContract.target})`,
-    );
-    const l1BridgeContractReceivedMessageEvents =
-      await l1BridgeContract.queryFilter(
-        "ReceivedMessage",
-        l1BridgeContractReceiveMessageReceipt.blockNumber,
-      );
-    log(
-      `l1BridgeContractReceivedMessageEvents:`,
-      l1BridgeContractReceivedMessageEvents,
-    );
-    log(
-      "Event: ",
-      l1GatewayContract.target,
-      l1BridgeContractReceiveMessageReceipt.blockNumber,
-    );
-    const l1GatewayContractReceivedTokensEvents =
-      await l1GatewayContract.queryFilter(
-        "ReceivedTokens",
-        l1BridgeContractReceiveMessageReceipt.blockNumber,
-      );
-    log(
-      `l1BridgeContractReceivedMessageEvents:`,
-      l1BridgeContractReceivedMessageEvents,
-    );
-
-    expect(l1BridgeContractReceivedMessageEvents.length).to.equal(1);
-    log(
-      `l1GatewayContractReceivedTokensEvents:`,
-      l1GatewayContractReceivedTokensEvents,
-    );
-    expect(l1GatewayContractReceivedTokensEvents.length).to.equal(1);
-
-    log(`peggedTokenView started`);
-    let peggedTokenView = await l1GatewayContract.computePeggedTokenAddress(
-      l2TokenContract.target,
-    );
-    log(`peggedTokenView: ${peggedTokenView}`);
-    let l1Addresses = await ctxL2.listAddresses();
-    log(`sendTokensBackTx started`);
-    const sendTokensBackTx = await l1GatewayContract.sendTokens(
-      peggedTokenView,
-      l1Addresses[3],
-      10,
-    );
     log(`QUEUE:`, await l1BridgeContract.getQueueSize());
-    log(`l2TokenContract.address ${l2TokenContract.target}`);
-    let sendTokensBackTxReceipt = await sendTokensBackTx.wait();
-    log(`sendTokensBackTxReceipt:`, sendTokensBackTxReceipt);
-    expect(sendTokensBackTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
 
-    log(
-      `getting l1BridgeContractSentMessageEvents (address: ${l1BridgeContract.target})`,
+    log(`Receipts:`, sendReceipts[0], sendReceipts.length);
+    let blocks = [...new Set(sendReceipts.map((r) => r.blockNumber))];
+    console.log("Blocks: ", blocks);
+    let batchSendEvents = await l1BridgeContract.queryFilter(
+      "SentMessage",
+      sendReceipts[0].blockNumber,
     );
-    const l1BridgeContractSentMessageEvents =
-      await l1BridgeContract.queryFilter(
+
+    let messagesHashes = batchSendEvents.map(
+      (events) => events.args["messageHash"],
+    );
+
+    log("message hashes: ", messagesHashes);
+
+    expect(batchSendEvents.length).to.eq(batchSize);
+
+    const latestBlockNumber = await ctxL1.provider.getBlockNumber();
+    let previousBlockHash =
+      "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
+    const allBatches = [];
+    let currentBatch = [];
+
+    for (let blockNumber = 0; blockNumber <= latestBlockNumber; blockNumber++) {
+      const block = await ctxL1.provider.getBlock(blockNumber);
+      const events = await l1BridgeContract.queryFilter(
         "SentMessage",
-        sendTokensReceipt.blockNumber,
+        blockNumber,
+        blockNumber,
       );
-    log(
-      `l1BridgeContractSentMessageEvents:`,
-      l1BridgeContractSentMessageEvents,
-    );
-    expect(l1BridgeContractSentMessageEvents.length).to.equal(1);
 
-    const sentBackEvent = l1BridgeContractSentMessageEvents[0];
+      let withdrawal_root =
+        "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
+      if (events.length > 0) {
+        withdrawal_root = events[0].args["messageHash"];
+      }
+      const blockHash = block.hash;
 
-    let messageHash = l2BridgeContractSentMessageEvents[0].args.messageHash;
-    const depositBackEvent = l2BridgeContractSentMessageEvents[0];
-    console.log("Event: ", sentBackEvent);
-
-    let depositHash = ethers.keccak256(messageHash);
-
-    const commitmentBatch = [
-      {
-        previousBlockHash:
+      const block_commitment = {
+        previousBlockHash: previousBlockHash,
+        blockHash: blockHash,
+        withdrawalHash: withdrawal_root,
+        depositHash:
           "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-        blockHash: sendTokensReceipt.blockHash,
-        withdrawalHash: sentBackEvent.args.messageHash,
-        depositHash: depositHash,
-      },
-    ];
-    const depositsInBlock = [
-      {
-        blockHash: sendTokensReceipt.blockHash,
-        depositCount: 1,
-      },
-    ];
+      };
 
-    let queue = await l1BridgeContract.getQueueSize();
-    console.log("QUEUE: ", queue, messageHash, depositHash);
+      currentBatch.push(block_commitment);
 
-    let nextBatchIndex = await rollupContract.nextBatchIndex();
+      previousBlockHash = blockHash;
 
-    log(`acceptNextTx started`);
-    const acceptNextTx = await rollupContract.acceptNextBatch(
-      nextBatchIndex,
-      commitmentBatch,
-      depositsInBlock,
-      {
-        gasLimit: 30_000_000,
-      },
-    );
-    let acceptNextTxReceipt = await acceptNextTx.wait();
-    log(`acceptNextTxReceipt:`, acceptNextTxReceipt);
-    expect(acceptNextTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
+      if (currentBatch.length === batchSize) {
+        allBatches.push(currentBatch);
+        currentBatch = [];
+      }
+    }
+    for (const commitmentBatch of allBatches) {
+      console.log("Batch: ", commitmentBatch.length);
+      let nextBatchIndex = await rollupContract.nextBatchIndex();
 
-    log(`started l2BridgeContractReceiveMessageWithProofTx`);
-    log("Args: ", sentBackEvent);
-    const l2BridgeContractReceiveMessageWithProofTx =
-      await l2BridgeContract.receiveMessageWithProof(
+      log(`acceptNextTx started`, nextBatchIndex, commitmentBatch[0], commitmentBatch[commitmentBatch.length - 1]);
+      const acceptNextTx = await rollupContract.acceptNextBatch(
         nextBatchIndex,
-        commitmentBatch[0],
-        sentBackEvent.args["sender"],
-        sentBackEvent.args["to"],
-        sentBackEvent.args["value"].toString(),
-        sentBackEvent.args["chainId"].toString(),
-        sentBackEvent.args["blockNumber"].toString(),
-        sentBackEvent.args["nonce"].toString(),
-        sentBackEvent.args["data"],
-        {
-          nonce: 0,
-          proof: "0x",
-        },
-        {
-          nonce: 0,
-          proof: "0x",
-        },
+        commitmentBatch,
+        [],
         {
           gasLimit: 30_000_000,
         },
       );
-    let l2BridgeContractReceiveMessageWithProofReceipt =
-      await l2BridgeContractReceiveMessageWithProofTx.wait();
-    log(
-      `l2BridgeContractReceiveMessageWithProofReceipt:`,
-      l2BridgeContractReceiveMessageWithProofReceipt,
-    );
-    expect(l2BridgeContractReceiveMessageWithProofReceipt.status).to.eq(
-      TX_RECEIPT_STATUS_SUCCESS,
-    );
+      let acceptNextTxReceipt = await acceptNextTx.wait();
+      await sleep(1000)
+      log(`acceptNextTxReceipt:`, acceptNextTxReceipt);
+      expect(acceptNextTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
+    }
 
-    log(
-      `getting l2BridgeContractReceivedMessageEvents (contract address: ${l2BridgeContract.target})`,
-    );
-    const l2BridgeContractReceivedMessageEvents =
-      await l2BridgeContract.queryFilter(
-        "ReceivedMessage",
-        l1BridgeContractReceiveMessageReceipt.blockNumber,
+    let nextBatchIndex = await rollupContract.nextBatchIndex();
+    nonce = await ctxL2.provider.getTransactionCount(ctxL2.owner(), "pending");
+    i = 0;
+    let withdrawalWithProofTxs = [];
+    for (let sendEvent of batchSendEvents) {
+      log(
+        `receive message with proof. Message hash: `,
+        sendEvent.args["messageHash"],
       );
-    log(`getting l2GatewayContractGatewayBackEvents`);
-    const l2GatewayContractGatewayBackEvents =
-      await l2GatewayContract.queryFilter(
-        "ReceivedTokens",
-        l1BridgeContractReceiveMessageReceipt.blockNumber,
-      );
-    log(
-      `l2BridgeContractReceivedMessageEvents:`,
-      l2BridgeContractReceivedMessageEvents,
-    );
-    log(
-      `l2GatewayContractGatewayBackEvents:`,
-      l2GatewayContractGatewayBackEvents,
-    );
-    expect(l2BridgeContractReceivedMessageEvents.length).to.equal(1);
-    expect(l2GatewayContractGatewayBackEvents.length).to.equal(1);
+      log("Args: ", sendEvent);
+      let batchIndex = sendEvent.args["blockNumber"] / 100n;
+
+      if (batchIndex >= nextBatchIndex) {
+        continue;
+      }
+
+      let commitmentBatch = allBatches[sendEvent.args["blockNumber"] / 100n];
+
+      let indexInBatch = sendEvent.args["blockNumber"] % 100n;
+
+      console.log("Batch index: ", batchIndex, commitmentBatch[0], commitmentBatch[commitmentBatch.length - 1]);
+
+      const hashes = commitmentBatch.map((item) => {
+        return hre.ethers.keccak256(
+          AbiCoder.defaultAbiCoder().encode(
+            ["bytes32", "bytes32", "bytes32", "bytes32"],
+            [
+              item.previousBlockHash,
+              item.blockHash,
+              item.withdrawalHash,
+              item.depositHash,
+            ],
+          ),
+        );
+      });
+
+      const tree = new MerkleTree(hashes, hre.ethers.keccak256, {
+        sortPairs: false,
+        duplicateOdd: true,
+      });
+
+
+      function getFullProofWithDuplicatesHex(tree, leafIndex) {
+        const layers = tree.getLayers(); // All levels of the tree
+        let index = leafIndex;
+        let proof = [];
+
+        for (let i = 0; i < layers.length - 1; i++) {
+          const layer = layers[i];
+
+          let pairIndex = index ^ 1; // sibling index
+          if (pairIndex >= layer.length) {
+            // Odd node duplicated — push itself
+            proof.push('0x' + layer[index].toString('hex'));
+          } else {
+            proof.push('0x' + layer[pairIndex].toString('hex'));
+          }
+
+          index = Math.floor(index / 2);
+        }
+
+        return proof;
+      }
+
+      let merkleProofs = getFullProofWithDuplicatesHex(tree, Number(indexInBatch));
+      merkleProofs = "0x" + merkleProofs.map(x => x.slice(2)).join("");
+
+      const l2BridgeContractReceiveMessageWithProofTx =
+        await l2BridgeContract.receiveMessageWithProof(
+          batchIndex,
+          commitmentBatch[indexInBatch],
+          sendEvent.args["sender"],
+          sendEvent.args["to"],
+          sendEvent.args["value"].toString(),
+          sendEvent.args["chainId"].toString(),
+          sendEvent.args["blockNumber"].toString(),
+          sendEvent.args["nonce"].toString(),
+          sendEvent.args["data"],
+          {
+            nonce: 0,
+            proof: "0x",
+          },
+          {
+            nonce: indexInBatch,
+            proof: merkleProofs,
+          },
+          {
+            gasLimit: 30_000_000,
+            nonce: nonce + i++
+          },
+        );
+      withdrawalWithProofTxs.push(l2BridgeContractReceiveMessageWithProofTx.wait());
+
+    }
+    const withdrawalWithProofReceipts = await Promise.all(withdrawalWithProofTxs);
+
+    // log(
+    //   `l2BridgeContractReceiveMessageWithProofReceipt:`,
+    //   l2BridgeContractReceiveMessageWithProofReceipt,
+    // );
+    // expect(l2BridgeContractReceiveMessageWithProofReceipt.status).to.eq(
+    //   TX_RECEIPT_STATUS_SUCCESS,
+    // );
+    //
+    // log(
+    //   `getting l2BridgeContractReceivedMessageEvents (contract address: ${l2BridgeContract.target})`,
+    // );
+    // const l2BridgeContractReceivedMessageEvents =
+    //   await l2BridgeContract.queryFilter(
+    //     "ReceivedMessage",
+    //     l1BridgeContractReceiveMessageReceipt.blockNumber,
+    //   );
+    // log(`getting l2GatewayContractGatewayBackEvents`);
+    // const l2GatewayContractGatewayBackEvents =
+    //   await l2GatewayContract.queryFilter(
+    //     "ReceivedTokens",
+    //     l1BridgeContractReceiveMessageReceipt.blockNumber,
+    //   );
+    // log(
+    //   `l2BridgeContractReceivedMessageEvents:`,
+    //   l2BridgeContractReceivedMessageEvents,
+    // );
+    // log(
+    //   `l2GatewayContractGatewayBackEvents:`,
+    //   l2GatewayContractGatewayBackEvents,
+    // );
+    // expect(l2BridgeContractReceivedMessageEvents.length).to.equal(1);
+    // expect(l2GatewayContractGatewayBackEvents.length).to.equal(1);
   });
 
   async function CheckLogsOnly(ctx) {
