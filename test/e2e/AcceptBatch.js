@@ -234,6 +234,209 @@ describe("Send tokens test", () => {
     expect(peggedTokenAddress).to.equal(otherSidePeggedTokenAddress);
   });
 
+  it("accept rollup", async function () {
+  return
+    //bridge 0xA3307BF348ACC4bEDdd67CCA2f7F0c4349d347Db
+    //rollup 0x76cec9299B6Fa418dc71416FF353737AB7933A7D
+
+    //bridge 0x0D92d35D311E54aB8EEA0394d7E773Fc5144491a
+    //rollup
+
+    const latestBlockNumber = await ctxL1.provider.getBlockNumber();
+    let previousBlockHash =
+        "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
+    const allBatches = [];
+    let currentBatch = [];
+
+    const bridgeFactory = await ethers.getContractFactory("Bridge");
+    log(`bridgeContract started deploy`);
+
+    const [ownerL1] = ctxL1.accounts;
+    const [ownerL2] = ctxL2.accounts;
+
+    await sleep(1000);
+    let l1BridgeContract = await bridgeFactory
+        .connect(ownerL1).attach("0xe6cFc17053c64838Fd7bb55BD4A2cb5b207A71ed");
+
+    let l2BridgeContract = await bridgeFactory
+        .connect(ownerL2).attach("0x8dF2a20225a5577fB173271c3777CF45305e816d");
+
+    const rollupFactory = await ethers.getContractFactory("Rollup");
+    let rollupContract = await rollupFactory
+        .connect(ownerL2).attach("0x3576293Ba6Adacba1A81397db889558Dd91A8519");
+
+    for (let blockNumber = 0; blockNumber <= latestBlockNumber; blockNumber++) {
+      const block = await ctxL1.provider.getBlock(blockNumber);
+      const events = await l1BridgeContract.queryFilter(
+          "SentMessage",
+          blockNumber,
+          blockNumber,
+      );
+
+      let withdrawal_root =
+          "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
+      if (events.length > 0) {
+        withdrawal_root = events[0].args["messageHash"];
+      }
+      const blockHash = block.hash;
+
+      const block_commitment = {
+        previousBlockHash: previousBlockHash,
+        blockHash: blockHash,
+        withdrawalHash: withdrawal_root,
+        depositHash:
+            "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      };
+
+      currentBatch.push(block_commitment);
+
+      previousBlockHash = blockHash;
+
+      if (currentBatch.length === batchSize) {
+        allBatches.push(currentBatch);
+        currentBatch = [];
+      }
+    }
+
+    let nextBatchIndex = await rollupContract.nextBatchIndex();
+    console.log("Batch len: ", allBatches.length, nextBatchIndex)
+    for (const commitmentBatch of allBatches.slice(Number(nextBatchIndex))) {
+      console.log("Batch: ", commitmentBatch.length);
+      let nextBatchIndex = await rollupContract.nextBatchIndex();
+
+      log(`acceptNextTx started`, nextBatchIndex, commitmentBatch[0], commitmentBatch[commitmentBatch.length - 1]);
+      const acceptNextTx = await rollupContract.acceptNextBatch(
+          nextBatchIndex,
+          commitmentBatch,
+          [],
+          {
+            gasLimit: 30_000_000,
+          },
+      );
+      let acceptNextTxReceipt = await acceptNextTx.wait();
+      await sleep(1000)
+      log(`acceptNextTxReceipt:`, acceptNextTxReceipt);
+      expect(acceptNextTxReceipt.status).to.eq(TX_RECEIPT_STATUS_SUCCESS);
+    }
+
+    let batchSendEvents = await l1BridgeContract.queryFilter(
+        "SentMessage",
+    );
+
+    for (let sendEvent of batchSendEvents) {
+      log(
+          `receive message with proof. Message hash: `,
+          sendEvent.args["messageHash"],
+          sendEvent.args["blockNumber"],
+      );
+      log("Args: ", sendEvent);
+
+      let batchIndex = sendEvent.args["blockNumber"] / 100n;
+
+      if (batchIndex >= nextBatchIndex) {
+        continue;
+      }
+
+      let commitmentBatch = allBatches[sendEvent.args["blockNumber"] / 100n];
+
+      let indexInBatch = sendEvent.args["blockNumber"] % 100n;
+      console.log("Batch Index: ", batchIndex, "index in batch: ", indexInBatch);
+      if (await l2BridgeContract.receivedMessage( sendEvent.args["messageHash"])) {
+
+        continue
+      }
+      // console.log(
+      //   "commitmentBatch: ",
+      //   commitmentBatch,
+      //   "indexInBatch: ",
+      //   indexInBatch,
+      // );
+      console.log("Batch index: ", batchIndex, commitmentBatch[0], commitmentBatch[commitmentBatch.length - 1], commitmentBatch.length)
+      const hashes = commitmentBatch.map((item) => {
+        return hre.ethers.keccak256(
+            AbiCoder.defaultAbiCoder().encode(
+                ["bytes32", "bytes32", "bytes32", "bytes32"],
+                [
+                  item.previousBlockHash,
+                  item.blockHash,
+                  item.withdrawalHash,
+                  item.depositHash,
+                ],
+            ),
+        );
+      });
+
+      const tree = new MerkleTree(hashes, hre.ethers.keccak256, {
+        sortPairs: false,
+        duplicateOdd: true,
+      });
+      let batchHash =
+          await rollupContract.acceptedBatchHash(batchIndex);
+      let merkleRoot = tree.getHexRoot();
+
+      console.log("Batch: ", batchHash, "Merkle root: ", merkleRoot, "Index in batch:", indexInBatch, "Block number: ", sendEvent.args["blockNumber"]);
+
+      let merkleProofs = tree.getHexProof(hashes[indexInBatch]);
+
+      function getFullProofWithDuplicatesHex(tree, leafIndex) {
+        const layers = tree.getLayers(); // All levels of the tree
+        let index = leafIndex;
+        let proof = [];
+
+        for (let i = 0; i < layers.length - 1; i++) {
+          const layer = layers[i];
+
+          let pairIndex = index ^ 1; // sibling index
+          if (pairIndex >= layer.length) {
+            // Odd node duplicated — push itself
+            proof.push('0x' + layer[index].toString('hex'));
+          } else {
+            proof.push('0x' + layer[pairIndex].toString('hex'));
+          }
+
+          index = Math.floor(index / 2);
+        }
+
+        return proof;
+      }
+
+      console.log("Merkle proof: ", merkleProofs, merkleRoot, hashes[indexInBatch], tree.getHexProof(hashes[indexInBatch-1n]), hashes[indexInBatch]);
+      console.log("Proofs: ", tree.getHexProof(hashes[indexInBatch]),tree.getProof(hashes[indexInBatch]), tree.getPositionalHexProof(hashes[indexInBatch]))
+      merkleProofs = getFullProofWithDuplicatesHex(tree, Number(indexInBatch));
+      console.log("Full proof: ", merkleProofs)
+      merkleProofs = "0x" + merkleProofs.map(x => x.slice(2)).join("");
+
+
+
+      const l2BridgeContractReceiveMessageWithProofTx =
+          await l2BridgeContract.receiveMessageWithProof(
+              batchIndex,
+              commitmentBatch[indexInBatch],
+              sendEvent.args["sender"],
+              sendEvent.args["to"],
+              sendEvent.args["value"].toString(),
+              sendEvent.args["chainId"].toString(),
+              sendEvent.args["blockNumber"].toString(),
+              sendEvent.args["nonce"].toString(),
+              sendEvent.args["data"],
+              {
+                nonce: 0,
+                proof: "0x",
+              },
+              {
+                nonce: indexInBatch,
+                proof: merkleProofs,
+              },
+              {
+                gasLimit: 30_000_000,
+              },
+          );
+      let l2BridgeContractReceiveMessageWithProofReceipt =
+          await l2BridgeContractReceiveMessageWithProofTx.wait();
+    }
+
+  })
+
   it("Bridging tokens between contracts", async () => {
 
     log(`approveTx started`);
@@ -371,38 +574,59 @@ describe("Send tokens test", () => {
     let previousBlockHash =
       "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
     const allBatches = [];
+    const depositsInBatches = [];
     let currentBatch = [];
+    let depositsInCurrentBatch = [];
 
     for (let blockNumber = 0; blockNumber <= latestBlockNumber; blockNumber++) {
       const block = await ctxL1.provider.getBlock(blockNumber);
-      const events = await l1BridgeContract.queryFilter(
+      const withdrawalEvents = await l1BridgeContract.queryFilter(
         "SentMessage",
         blockNumber,
         blockNumber,
       );
 
-      let withdrawal_root =
+      const depositEvents =
+        await l2BridgeContract.queryFilter(
+          "ReceivedMessage",
+            blockNumber,
+            blockNumber,
+        );
+
+      let withdrawalRoot =
         "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
-      if (events.length > 0) {
-        withdrawal_root = events[0].args["messageHash"];
+      if (withdrawalEvents.length > 0) {
+        withdrawalRoot = withdrawalEvents[0].args["messageHash"];
       }
+
+      let depositHash =
+          "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
+      if (depositEvents.length > 0) {
+        depositHash = hre.ethers.keccak256(AbiCoder.defaultAbiCoder().encode(["bytes32"],[depositEvents[0].args["messageHash"]]));
+      }
+
       const blockHash = block.hash;
 
       const block_commitment = {
         previousBlockHash: previousBlockHash,
         blockHash: blockHash,
-        withdrawalHash: withdrawal_root,
-        depositHash:
-          "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        withdrawalHash: withdrawalRoot,
+        depositHash: depositHash,
       };
 
-      currentBatch.push(block_commitment);
+      currentBatch.push(block_commitment)
+      depositsInCurrentBatch.push({
+        blockHash: blockHash,
+        depositCount: 1,
+      })
 
       previousBlockHash = blockHash;
 
       if (currentBatch.length === batchSize) {
         allBatches.push(currentBatch);
+        depositsInBatches.push(depositsInCurrentBatch);
         currentBatch = [];
+        depositsInCurrentBatch = [];
       }
     }
     for (const commitmentBatch of allBatches) {
@@ -410,10 +634,11 @@ describe("Send tokens test", () => {
       let nextBatchIndex = await rollupContract.nextBatchIndex();
 
       log(`acceptNextTx started`, nextBatchIndex, commitmentBatch[0], commitmentBatch[commitmentBatch.length - 1]);
+      log("dep in batch: ",  depositsInBatches[nextBatchIndex],);
       const acceptNextTx = await rollupContract.acceptNextBatch(
         nextBatchIndex,
         commitmentBatch,
-        [],
+        depositsInBatches[nextBatchIndex],
         {
           gasLimit: 30_000_000,
         },
