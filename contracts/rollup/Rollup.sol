@@ -29,6 +29,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     );
     error NoLeavesProvided();
     error NothingToWithdraw();
+    error NotEnoughValueIncentiveFee(uint256 value, uint256 incentiveFee);
 
     address public bridge;
 
@@ -37,6 +38,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     uint256 public nextBatchIndex;
     uint256 public approveBlockCount;
     uint256 public challengeDepositAmount;
+    uint256 public incentiveFee;
     uint256 public challengeBlockCount;
     address public blobHashGetter;
 
@@ -89,7 +91,8 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         bytes32 _genesisHash,
         address _bridge,
         uint256 _batchSize,
-        uint256 _acceptDepositDeadline
+        uint256 _acceptDepositDeadline,
+        uint256 _incentiveFee
     ) Ownable(msg.sender) {
         challengeDepositAmount = _challengeDepositAmount;
         challengeBlockCount = _challengeBlockCount;
@@ -101,6 +104,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         bridge = _bridge;
         batchSize = _batchSize;
         acceptDepositDeadline = _acceptDepositDeadline;
+        incentiveFee = _incentiveFee;
     }
 
     function calculateBlobHash(bytes memory blob) public returns (bytes32) {
@@ -468,13 +472,14 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
 
     function forceRevertBatch(
         uint256 _revertedBatchIndex
-    ) external onlyOwner nonReentrant {
+    ) external payable onlyOwner nonReentrant {
         if (!_acceptedBatch(_revertedBatchIndex)) {
             revert BatchNotAccepted(_revertedBatchIndex);
         }
         if (_revertedBatchIndex == 0) {
             revert InvalidRevertIndex(_revertedBatchIndex);
         }
+        uint256 incentiveFees = 0;
         for (uint256 i = _revertedBatchIndex; i < nextBatchIndex; i++) {
             for (
                 uint256 j = challengeQueueStart;
@@ -492,9 +497,13 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
                     challengerDeposit[challenger] -= challengeDepositAmount;
                     challengerReadyForWithdrawal[
                         challenger
-                    ] += challengeDepositAmount;
+                    ] += challengeDepositAmount + incentiveFee;
+                    incentiveFees += incentiveFee;
                 }
             }
+        }
+        if (msg.value < incentiveFees) {
+            revert NotEnoughValueIncentiveFee(msg.value, incentiveFees);
         }
         _cleanQueue();
 
