@@ -32,6 +32,7 @@ describe("Rollup.sol", function () {
       bridge.target,
       2,
       10,
+      1000,
     );
 
     await rollup.setDaCheck(false);
@@ -211,7 +212,7 @@ describe("Rollup.sol", function () {
 
     expect(await rollupContractWithSigner.rollupCorrupted()).to.eq(true);
 
-    await rollupContractWithSigner.forceRevertBatch(nextBatchIndex);
+    await rollupContractWithSigner.forceRevertBatch(nextBatchIndex, {value: 1000});
 
     expect(await rollupContractWithSigner.rollupCorrupted()).to.eq(false);
   });

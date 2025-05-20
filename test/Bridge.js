@@ -27,6 +27,7 @@ describe("Bridge", function () {
       "0x0000000000000000000000000000000000000000",
       2,
       10,
+      0,
     );
 
     const BridgeContract = await ethers.getContractFactory("Bridge");
