@@ -7,9 +7,14 @@ import {Bridge} from "../Bridge.sol";
 
 pragma solidity ^0.8.0;
 
+/**
+ * @title Rollup Contract
+ * @dev This contract implements a rollup system with features such as batch acceptance, deposit verification,
+ * proof submission, and challenge mechanisms. It interacts with a Bridge contract and a verifier for zk-SNARK proof validation.
+ */
 contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     error RollupCorrupted();
-    error WrongPrevBlockHash(bytes32 expected, bytes32 provided);
+    error WrongPreviousBlockHash(bytes32 expected, bytes32 provided);
     error DepositVerificationFailed(bytes32 blockHash);
     error AcceptDepositDeadlineExceeded(uint256 deadline, uint256 currentBlock);
     error BatchNotAccepted(uint256 batchIndex);
@@ -31,57 +36,121 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     error NothingToWithdraw();
     error NotEnoughValueIncentiveFee(uint256 value, uint256 incentiveFee);
 
+    /// @notice Address of the Bridge contract. Responsible for exchanging messages between L1 and L2.
     address public bridge;
 
+    /// @notice Program verification key for zk-SNARK proof verification.
     bytes32 public programVKey;
 
+    /// @notice Next batch index to be accepted.
     uint256 public nextBatchIndex;
+
+    /// @notice Block delay required before a batch can be approved
     uint256 public approveBlockCount;
+
+    /// @notice Required ETH deposit for a challenge.
     uint256 public challengeDepositAmount;
+
+    /// @notice Incentive fee for successful challengers.
     uint256 public incentiveFee;
+
+    /// @notice Number of blocks within which a challenge must be resolved.
     uint256 public challengeBlockCount;
+
+    /// @notice Address of the blob hash getter contract.
     address public blobHashGetter;
 
+    /// @notice Number of blocks in each batch.
     uint256 public batchSize;
+
+    /// @notice Hash of the last accepted block.
     bytes32 public lastBlockHashAccepted;
+
+    /// @notice Block number of the last accepted deposit.
     uint256 public lastDepositAcceptedBlockNumber;
+
+    /// @notice Deadline in blocks for accepting deposits.
     uint256 public acceptDepositDeadline;
 
+    /// @notice Queue of challenged batches.
     uint[] private challengeQueue;
+
+    /// @notice Start index of the challenge queue.
     uint private challengeQueueStart;
 
+    /// @notice Toggle for enabling data availability checks.
     bool private daCheck;
 
+
+    /// @notice Mapping from batch index to batch root hash.
     mapping(uint256 => bytes32) public acceptedBatchHash;
+
+    /// @notice Mapping from batch index to the block number when it was accepted.
     mapping(uint256 => uint256) public acceptedBlock;
+
+    /// @notice Mapping to track proofed batches.
     mapping(uint256 => bool) public proofedBatch;
 
+    /// @notice Mapping from address to their challenge deposit.
     mapping(address => uint256) public challengerDeposit;
+
+    /// @notice Mapping from address to challenge deposit available for withdrawal.
     mapping(address => uint256) public challengerReadyForWithdrawal;
+
+    /// @notice Mapping from batch index to challenger address.
     mapping(uint256 => address) public batchChallenger;
+
+    /// @notice Mapping from batch index to challenge deadline block number.
     mapping(uint256 => uint256) public challengeDeadline;
 
+    /// @dev Constant representing an empty deposit hash.
     bytes32 public constant ZERO_BYTES_HASH =
         0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
 
+    /// @dev zk-SNARK verifier instance.
     IVerifier private verifier;
 
+    /// @dev Structure representing a committed block.
     struct BlockCommitment {
+        /// @dev The hash of the previous block in the batch. Enforces correct block sequencing.
         bytes32 previousBlockHash;
+
+        /// @dev The hash of the current block's contents (e.g., state transition data).
         bytes32 blockHash;
+
+        /// @dev The Merkle root of all withdrawal operations in the current block.
+        /// A withdrawal represents a message sent from the bridge on the L2 side.
+        /// Each leaf in the Merkle tree is the message hash, calculated individually for each message.
         bytes32 withdrawalHash;
+
+        /// @dev The Merkle root of all deposit operations included in the current block.
+        /// A deposit represents a message received on L2 from L1 via the bridge.
+        /// Each deposit is hashed individually to form a message hash.
+        /// The final `depositHash` is computed as the keccak256 hash of all message hashes concatenated
         bytes32 depositHash;
     }
 
+    /// @dev Represents metadata about deposits included in a block.
     struct DepositsInBlock {
+        /// @notice The hash of the block containing the deposits.
         bytes32 blockHash;
+
+        /// @notice The number of deposit entries in the block.
         uint256 depositCount;
     }
 
+    /// @notice Emitted when the verifier is updated.
     event UpdateVerifier(address oldVerifier, address newVerifier);
+
+    /// @notice Emitted when a batch is accepted.
     event BatchAccepted(uint256 batchIndex, bytes32 batchRoot);
+
+    /// @notice Emitted when a batch is proven.
     event BatchProofed(uint256 batchIndex);
 
+    /**
+     * @dev Initializes the Rollup contract with initial configuration.
+     */
     constructor(
         uint256 _challengeDepositAmount,
         uint256 _challengeBlockCount,
@@ -107,6 +176,83 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         incentiveFee = _incentiveFee;
     }
 
+    /**
+     * @notice Toggle data availability check.
+     * @param isCheck Whether to enable the check.
+     */
+    function setDaCheck(bool isCheck) external payable onlyOwner {
+        daCheck = isCheck;
+    }
+
+    /**
+     * @notice Set a new bridge contract address.
+     * @param _bridge The new bridge address.
+     */
+    function setBridge(address _bridge) external payable onlyOwner {
+        bridge = _bridge;
+    }
+
+    /**
+     * @notice Updates the verifier contract.
+     * @param _newVerifier The address of the new verifier.
+     */
+    function updateVerifier(address _newVerifier) external onlyOwner {
+        address _oldVerifier = address(verifier);
+        verifier = IVerifier(_newVerifier);
+
+        emit UpdateVerifier(_oldVerifier, _newVerifier);
+    }
+
+
+    /**
+     * @notice Forces reversion of batches starting from a given index.
+     * @param _revertedBatchIndex The batch index to revert from.
+     */
+    function forceRevertBatch(
+        uint256 _revertedBatchIndex
+    ) external payable onlyOwner nonReentrant {
+        if (!_acceptedBatch(_revertedBatchIndex)) {
+            revert BatchNotAccepted(_revertedBatchIndex);
+        }
+        if (_revertedBatchIndex == 0) {
+            revert InvalidRevertIndex(_revertedBatchIndex);
+        }
+        uint256 incentiveFees = 0;
+        for (uint256 i = _revertedBatchIndex; i < nextBatchIndex; i++) {
+            for (
+                uint256 j = challengeQueueStart;
+                j < challengeQueue.length;
+                j++
+            ) {
+                if (i == challengeQueue[j]) {
+                    delete challengeQueue[j];
+                }
+            }
+            address challenger = batchChallenger[i];
+            if (challenger != address(0)) {
+                batchChallenger[i] = address(0);
+                if (challengerDeposit[challenger] >= challengeDepositAmount) {
+                    challengerDeposit[challenger] -= challengeDepositAmount;
+                    challengerReadyForWithdrawal[
+                    challenger
+                    ] += challengeDepositAmount + incentiveFee;
+                    incentiveFees += incentiveFee;
+                }
+            }
+        }
+        if (msg.value < incentiveFees) {
+            revert NotEnoughValueIncentiveFee(msg.value, incentiveFees);
+        }
+        _cleanQueue();
+
+        nextBatchIndex = _revertedBatchIndex;
+    }
+
+    /**
+     * @notice Calculates the hash of a blob for DA check.
+     * @param blob The blob data.
+     * @return hash The resulting blob hash.
+     */
     function calculateBlobHash(bytes memory blob) public returns (bytes32) {
         bytes32 hash = sha256(blob);
 
@@ -116,14 +262,13 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         return hash;
     }
 
-    function setDaCheck(bool isCheck) external payable onlyOwner {
-        daCheck = isCheck;
-    }
-
-    function setBridge(address _bridge) external payable onlyOwner {
-        bridge = _bridge;
-    }
-
+    /**
+     * @notice Calculates the Merkle root of a batch of block commitments.
+     * @dev Each commitment is hashed using keccak256 and used as a leaf in the Merkle tree.
+     *      The resulting Merkle root represents the batch's integrity and can be used to verify inclusion.
+     * @param commitmentBatch An array of BlockCommitment structs representing the batch.
+     * @return The Merkle root (batch root) derived from the block commitments.
+     */
     function calculateBatchRoot(
         BlockCommitment[] calldata commitmentBatch
     ) public view returns (bytes32) {
@@ -145,31 +290,13 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
 
         return _calculateMerkleRoot(leafs);
     }
-
-    function _checkDeposit(
-        BlockCommitment calldata _commitmentBatch,
-        DepositsInBlock calldata depositInBlock
-    ) private returns (bool) {
-        if (_commitmentBatch.blockHash != depositInBlock.blockHash) {
-            revert BlockHashMismatch(
-                _commitmentBatch.blockHash,
-                depositInBlock.blockHash
-            );
-        }
-
-        bytes32[] memory depositIds = new bytes32[](
-            depositInBlock.depositCount
-        );
-        for (uint256 i = 0; i < depositInBlock.depositCount; ++i) {
-            bytes32 depositId = Bridge(bridge).popSentMessage();
-            depositIds[i] = depositId;
-        }
-
-        return
-            keccak256(abi.encodePacked(depositIds)) ==
-            _commitmentBatch.depositHash;
-    }
-
+    
+    /**
+     * @notice Accepts the next batch of block commitments.
+     * @param _batchIndex The batch index.
+     * @param _commitmentBatch The batch of block commitments.
+     * @param depositsInBlocks Deposits per block for validation.
+     */
     function acceptNextBatch(
         uint256 _batchIndex,
         BlockCommitment[] calldata _commitmentBatch,
@@ -188,7 +315,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         }
 
         if (_commitmentBatch[0].previousBlockHash != lastBlockHashAccepted) {
-            revert WrongPrevBlockHash(
+            revert WrongPreviousBlockHash(
                 lastBlockHashAccepted,
                 _commitmentBatch[0].previousBlockHash
             );
@@ -275,20 +402,39 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         emit BatchAccepted(_batchIndex, batchRoot);
     }
 
+    /**
+     * @notice Returns the challenge queue.
+     */
     function getChallengeQueue() public view returns (uint[] memory) {
         return challengeQueue;
     }
 
+    /**
+     * @notice Checks if rollup is corrupted.
+     */
     function rollupCorrupted() external view returns (bool) {
         return _rollupCorrupted();
     }
 
+    /**
+     * @dev Checks if the rollup is in a corrupted state.
+     * @return True if the earliest challenged batch has exceeded its challenge deadline without resolution.
+     *
+     * A rollup is considered corrupted when:
+     * - There is at least one challenged batch in the challenge queue, AND
+     * - The current block number has exceeded the challenge deadline for the first challenged batch in queue.
+     */
     function _rollupCorrupted() internal view returns (bool) {
         return
             challengeQueue.length != 0 &&
             challengeDeadline[challengeQueue[0]] < block.number;
     }
 
+    /**
+     * @notice Checks if a batch has been accepted.
+     * @param _batchIndex The index of the batch to check.
+     * @return True if the batch has been accepted (i.e., its index is less than the next expected batch index).
+     */
     function acceptedBatch(uint256 _batchIndex) external view returns (bool) {
         return _acceptedBatch(_batchIndex);
     }
@@ -297,10 +443,24 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         return _batchIndex < nextBatchIndex;
     }
 
+    /**
+     * @notice Checks if a batch has been approved.
+     * @param _batchIndex The index of the batch to check.
+     * @return True if the batch has been approved, either because enough blocks have passed since acceptance,
+     *         or the batch has already been proven.
+     */
     function approvedBatch(uint256 _batchIndex) external view returns (bool) {
         return _approvedBatch(_batchIndex);
     }
 
+    /**
+     * @dev Internal helper to determine whether a batch is approved.
+     * @param _batchIndex The index of the batch.
+     * @return True if:
+     *         - The batch has been accepted, AND
+     *         - Either `approveBlockCount` blocks have passed since the batch was accepted, OR
+     *           the batch has already been proven via zk-SNARK proof.
+     */
     function _approvedBatch(uint256 _batchIndex) internal view returns (bool) {
         uint256 blockAcceptBlockNumber = acceptedBlock[_batchIndex];
 
@@ -310,6 +470,12 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
                 proofedBatch[_batchIndex]);
     }
 
+    /**
+     * @notice Challenges an unapproved, unproven batch by providing a deposit.
+     * @dev A batch can be challenged only if it is accepted, not yet approved, not proven, and not already challenged.
+     *      The caller must send at least `challengeDepositAmount` in ETH as a deposit.
+     * @param _batchIndex The index of the batch to challenge.
+     */
     function challengeBatch(uint256 _batchIndex) external payable nonReentrant {
         if (!_acceptedBatch(_batchIndex)) {
             revert BatchNotAccepted(_batchIndex);
@@ -337,6 +503,13 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         challengeQueue.push(_batchIndex);
     }
 
+    /**
+     * @notice Submits a zk-SNARK proof to finalize and approve a previously accepted batch.
+     * @dev Verifies the proof using the configured zk-SNARK verifier and marks the batch as proven.
+     *      If the batch was challenged, the challenger's deposit is unlocked for withdrawal.
+     * @param _batchIndex The index of the batch to prove.
+     * @param _proof The zk-SNARK proof data associated with the batch's root hash.
+     */
     function proofBatch(
         uint256 _batchIndex,
         bytes calldata _proof
@@ -368,6 +541,11 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         emit BatchProofed(_batchIndex);
     }
 
+    /**
+     * @notice Withdraws the challenge deposit and incentive (if any) for a given challenger.
+     * @dev Only withdraws if the challenger has a non-zero withdrawable balance. Resets the balance after transfer.
+     * @param challenger The address of the challenger requesting the withdrawal.
+     */
     function withdrawChallengeDeposit(
         address payable challenger
     ) external payable nonReentrant {
@@ -378,6 +556,30 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         challengerReadyForWithdrawal[challenger] = 0;
 
         challenger.transfer(amount);
+    }
+
+    function _checkDeposit(
+        BlockCommitment calldata _commitmentBatch,
+        DepositsInBlock calldata depositInBlock
+    ) private returns (bool) {
+        if (_commitmentBatch.blockHash != depositInBlock.blockHash) {
+            revert BlockHashMismatch(
+                _commitmentBatch.blockHash,
+                depositInBlock.blockHash
+            );
+        }
+
+        bytes32[] memory depositIds = new bytes32[](
+            depositInBlock.depositCount
+        );
+        for (uint256 i = 0; i < depositInBlock.depositCount; ++i) {
+            bytes32 depositId = Bridge(bridge).popSentMessage();
+            depositIds[i] = depositId;
+        }
+
+        return
+            keccak256(abi.encodePacked(depositIds)) ==
+            _commitmentBatch.depositHash;
     }
 
     function _getPublicValues(
@@ -468,52 +670,5 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
             mstore(0x20, b)
             value := keccak256(0x00, 0x40)
         }
-    }
-
-    function forceRevertBatch(
-        uint256 _revertedBatchIndex
-    ) external payable onlyOwner nonReentrant {
-        if (!_acceptedBatch(_revertedBatchIndex)) {
-            revert BatchNotAccepted(_revertedBatchIndex);
-        }
-        if (_revertedBatchIndex == 0) {
-            revert InvalidRevertIndex(_revertedBatchIndex);
-        }
-        uint256 incentiveFees = 0;
-        for (uint256 i = _revertedBatchIndex; i < nextBatchIndex; i++) {
-            for (
-                uint256 j = challengeQueueStart;
-                j < challengeQueue.length;
-                j++
-            ) {
-                if (i == challengeQueue[j]) {
-                    delete challengeQueue[j];
-                }
-            }
-            address challenger = batchChallenger[i];
-            if (challenger != address(0)) {
-                batchChallenger[i] = address(0);
-                if (challengerDeposit[challenger] >= challengeDepositAmount) {
-                    challengerDeposit[challenger] -= challengeDepositAmount;
-                    challengerReadyForWithdrawal[
-                        challenger
-                    ] += challengeDepositAmount + incentiveFee;
-                    incentiveFees += incentiveFee;
-                }
-            }
-        }
-        if (msg.value < incentiveFees) {
-            revert NotEnoughValueIncentiveFee(msg.value, incentiveFees);
-        }
-        _cleanQueue();
-
-        nextBatchIndex = _revertedBatchIndex;
-    }
-
-    function updateVerifier(address _newVerifier) external onlyOwner {
-        address _oldVerifier = address(verifier);
-        verifier = IVerifier(_newVerifier);
-
-        emit UpdateVerifier(_oldVerifier, _newVerifier);
     }
 }
