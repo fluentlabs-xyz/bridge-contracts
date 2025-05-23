@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { BigNumber, AbiCoder } = require("ethers");
 const { network } = require("hardhat");
-const { sleep } = require("@nomicfoundation/hardhat-verify/internal/utilities");
+const { ethers } = require("hardhat");
 
 describe("Bridge", function () {
   let bridge;
@@ -456,7 +456,9 @@ describe("Bridge", function () {
     let messageHash = events[0].args.messageHash;
     let rollbackEvent = events[0];
 
-    let previousBlock = await rollup.lastBlockHashAccepted();
+    let nextBatchIndex = await rollup.nextBatchIndex();
+
+    let previousBlock = await rollup.lastBlockHashInBatch(nextBatchIndex - 1n);
 
     const commitmentBatch = [
       {
@@ -493,10 +495,6 @@ describe("Bridge", function () {
       );
     });
     const rollupContractWithSigner = rollup.connect(accounts[0]);
-
-    let nextBatchIndex = await rollupContractWithSigner.nextBatchIndex();
-
-    let queueSize = await contractWithSigner.getQueueSize();
 
     await rollupContractWithSigner.acceptNextBatch(
       nextBatchIndex,
