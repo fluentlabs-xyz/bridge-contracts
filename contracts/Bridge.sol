@@ -40,12 +40,6 @@ contract Bridge is ReentrancyGuard {
         Success
     }
 
-    /// @notice Structure containing Merkle proof details.
-    struct MerkleProof {
-        uint256 nonce;
-        bytes proof;
-    }
-
     /// @notice Mapping of received message hashes to their status.
     mapping(bytes32 => MessageStatus) public receivedMessage;
     /// @notice Mapping of rollback message hashes to their rollback result status.
@@ -213,8 +207,8 @@ contract Bridge is ReentrancyGuard {
         uint256 _blockNumber,
         uint256 _nonce,
         bytes calldata _message,
-        MerkleProof calldata _withdrawal_proof,
-        MerkleProof calldata _block_proof
+        MerkleTree.MerkleProof calldata _withdrawal_proof,
+        MerkleTree.MerkleProof calldata _block_proof
     ) external payable nonReentrant {
         if (_nonce != _takeNextReceivedNonce())
             revert MessageReceivedOutOfOrder();
@@ -285,8 +279,8 @@ contract Bridge is ReentrancyGuard {
         uint256 _blockNumber,
         uint256 _nonce,
         bytes calldata _message,
-        MerkleProof calldata _rollback_proof,
-        MerkleProof calldata _block_proof
+        MerkleTree.MerkleProof calldata _rollback_proof,
+        MerkleTree.MerkleProof calldata _block_proof
     ) external payable nonReentrant {
         if (!Rollup(rollup).approvedBatch(_batchIndex))
             revert InvalidBlockProof();
@@ -521,8 +515,8 @@ contract Bridge is ReentrancyGuard {
     function _verifyWithdrawal(
         uint256 _batchIndex,
         Rollup.BlockCommitment calldata _commitmentBatch,
-        MerkleProof calldata _withdrawal_proof,
-        MerkleProof calldata _block_proof,
+        MerkleTree.MerkleProof calldata _withdrawal_proof,
+        MerkleTree.MerkleProof calldata _block_proof,
         bytes32 _messageHash
     ) private {
         bool blockValid = MerkleTree.verifyMerkleProof(

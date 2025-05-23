@@ -4,6 +4,7 @@ import "../interfaces/IRollupVerifier.sol";
 import "../interfaces/IVerifier.sol";
 import "../restaker/libraries/BlobHashGetter.sol";
 import {Bridge} from "../Bridge.sol";
+import {MerkleTree} from "../libraries/MerkleTree.sol";
 
 pragma solidity ^0.8.0;
 
@@ -19,7 +20,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     error AcceptDepositDeadlineExceeded(uint256 deadline, uint256 currentBlock);
     error BatchNotAccepted(uint256 batchIndex);
     error BatchAlreadyApproved(uint256 batchIndex);
-    error BatchAlreadyProofed(uint256 batchIndex);
+    error BlockCommitmentAlreadyProofed(bytes32 commitmentHash);
     error BatchAlreadyChallenged(uint256 batchIndex);
     error InsufficientChallengeDeposit(uint256 required, uint256 provided);
     error EthTransferFailed(address recipient, uint256 amount);
@@ -35,6 +36,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     error NoLeavesProvided();
     error NothingToWithdraw();
     error NotEnoughValueIncentiveFee(uint256 value, uint256 incentiveFee);
+    error InvalidBlockProof();
 
     /// @notice Address of the Bridge contract. Responsible for exchanging messages between L1 and L2.
     address public bridge;
@@ -63,24 +65,14 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     /// @notice Number of blocks in each batch.
     uint256 public batchSize;
 
-    /// @notice Hash of the last accepted block.
-    bytes32 public lastBlockHashAccepted;
+    /// @notice Mapping from batch index to the last block hash in that batch.
+    mapping(uint256 => bytes32) public lastBlockHashInBatch;
 
     /// @notice Block number of the last accepted deposit.
     uint256 public lastDepositAcceptedBlockNumber;
 
     /// @notice Deadline in blocks for accepting deposits.
     uint256 public acceptDepositDeadline;
-
-    /// @notice Queue of challenged batches.
-    uint[] private challengeQueue;
-
-    /// @notice Start index of the challenge queue.
-    uint private challengeQueueStart;
-
-    /// @notice Toggle for enabling data availability checks.
-    bool private daCheck;
-
 
     /// @notice Mapping from batch index to batch root hash.
     mapping(uint256 => bytes32) public acceptedBatchHash;
@@ -91,17 +83,29 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     /// @notice Mapping to track proofed batches.
     mapping(uint256 => bool) public proofedBatch;
 
+    /// @notice Mapping to track proofed block commitments.
+    mapping(bytes32 => bool) public proofedBlockCommitment;
+
     /// @notice Mapping from address to their challenge deposit.
     mapping(address => uint256) public challengerDeposit;
 
     /// @notice Mapping from address to challenge deposit available for withdrawal.
     mapping(address => uint256) public challengerReadyForWithdrawal;
 
-    /// @notice Mapping from batch index to challenger address.
-    mapping(uint256 => address) public batchChallenger;
+    /// @notice Mapping from block commitment hash to challenger address.
+    mapping(bytes32 => address) public blockCommitmentChallenger;
 
-    /// @notice Mapping from batch index to challenge deadline block number.
-    mapping(uint256 => uint256) public challengeDeadline;
+    /// @notice Mapping from block commitment hash to challenge deadline block number.
+    mapping(bytes32 => uint256) public challengeDeadline;
+
+    /// @notice Queue of challenged block commitment hashes.
+    bytes32[] private challengeQueue;
+
+    /// @notice Start index of the challenge queue.
+    uint private challengeQueueStart;
+
+    /// @notice Toggle for enabling data availability checks.
+    bool private daCheck;
 
     /// @dev Constant representing an empty deposit hash.
     bytes32 public constant ZERO_BYTES_HASH =
@@ -126,7 +130,6 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         /// @dev The Merkle root of all deposit operations included in the current block.
         /// A deposit represents a message received on L2 from L1 via the bridge.
         /// Each deposit is hashed individually to form a message hash.
-        /// The final `depositHash` is computed as the keccak256 hash of all message hashes concatenated
         bytes32 depositHash;
     }
 
@@ -138,6 +141,9 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         /// @notice The number of deposit entries in the block.
         uint256 depositCount;
     }
+
+    /// @notice Mapping from batch index to array of challenged block commitment hashes.
+    mapping(uint256 => bytes32[]) public batchChallengedCommitments;
 
     /// @notice Emitted when the verifier is updated.
     event UpdateVerifier(address oldVerifier, address newVerifier);
@@ -169,7 +175,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         verifier = IVerifier(_verifier);
         daCheck = true;
         programVKey = _programVKey;
-        lastBlockHashAccepted = _genesisHash;
+        lastBlockHashInBatch[0] = _genesisHash;
         bridge = _bridge;
         batchSize = _batchSize;
         acceptDepositDeadline = _acceptDepositDeadline;
@@ -203,7 +209,6 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         emit UpdateVerifier(_oldVerifier, _newVerifier);
     }
 
-
     /**
      * @notice Forces reversion of batches starting from a given index.
      * @param _revertedBatchIndex The batch index to revert from.
@@ -219,26 +224,31 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         }
         uint256 incentiveFees = 0;
         for (uint256 i = _revertedBatchIndex; i < nextBatchIndex; i++) {
-            for (
-                uint256 j = challengeQueueStart;
-                j < challengeQueue.length;
-                j++
-            ) {
-                if (i == challengeQueue[j]) {
-                    delete challengeQueue[j];
+            bytes32 batchHash = acceptedBatchHash[i];
+            // Handle challenged commitments for this batch
+            bytes32[] storage challengedCommitments = batchChallengedCommitments[i];
+            for (uint256 j = 0; j < challengedCommitments.length; j++) {
+                bytes32 commitmentHash = challengedCommitments[j];
+                address challenger = blockCommitmentChallenger[commitmentHash];
+                if (challenger != address(0)) {
+                    blockCommitmentChallenger[commitmentHash] = address(0);
+                    if (challengerDeposit[challenger] >= challengeDepositAmount) {
+                        challengerDeposit[challenger] -= challengeDepositAmount;
+                        challengerReadyForWithdrawal[
+                            challenger
+                        ] += challengeDepositAmount + incentiveFee;
+                        incentiveFees += incentiveFee;
+                    }
+                }
+                // Remove from challenge queue
+                for (uint256 k = 0; k < challengeQueue.length; k++) {
+                    if (challengeQueue[k] == commitmentHash) {
+                        delete challengeQueue[k];
+                    }
                 }
             }
-            address challenger = batchChallenger[i];
-            if (challenger != address(0)) {
-                batchChallenger[i] = address(0);
-                if (challengerDeposit[challenger] >= challengeDepositAmount) {
-                    challengerDeposit[challenger] -= challengeDepositAmount;
-                    challengerReadyForWithdrawal[
-                    challenger
-                    ] += challengeDepositAmount + incentiveFee;
-                    incentiveFees += incentiveFee;
-                }
-            }
+            // Clear the batch's challenged commitments
+            delete batchChallengedCommitments[i];
         }
         if (msg.value < incentiveFees) {
             revert NotEnoughValueIncentiveFee(msg.value, incentiveFees);
@@ -246,6 +256,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         _cleanQueue();
 
         nextBatchIndex = _revertedBatchIndex;
+        acceptedBlock[_revertedBatchIndex] = 0;
     }
 
     /**
@@ -314,11 +325,13 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
             revert InvalidBatchSize(batchSize, _commitmentBatch.length);
         }
 
-        if (_commitmentBatch[0].previousBlockHash != lastBlockHashAccepted) {
-            revert WrongPreviousBlockHash(
-                lastBlockHashAccepted,
-                _commitmentBatch[0].previousBlockHash
-            );
+        if (_batchIndex > 0) {
+            if (_commitmentBatch[0].previousBlockHash != lastBlockHashInBatch[_batchIndex - 1]) {
+                revert WrongPreviousBlockHash(
+                    lastBlockHashInBatch[_batchIndex - 1],
+                    _commitmentBatch[0].previousBlockHash
+                );
+            }
         }
 
         uint256 depositIndex = 0;
@@ -396,7 +409,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         bytes32 batchRoot = calculateBatchRoot(_commitmentBatch);
         acceptedBatchHash[_batchIndex] = batchRoot;
         nextBatchIndex = _batchIndex + 1;
-        lastBlockHashAccepted = _commitmentBatch[batchSize - 1].blockHash;
+        lastBlockHashInBatch[_batchIndex] = _commitmentBatch[batchSize - 1].blockHash;
         acceptedBlock[_batchIndex] = block.number;
 
         emit BatchAccepted(_batchIndex, batchRoot);
@@ -405,7 +418,7 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
     /**
      * @notice Returns the challenge queue.
      */
-    function getChallengeQueue() public view returns (uint[] memory) {
+    function getChallengeQueue() public view returns (bytes32[] memory) {
         return challengeQueue;
     }
 
@@ -466,27 +479,52 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
 
         return
             _acceptedBatch(_batchIndex) &&
-            (block.number - blockAcceptBlockNumber > approveBlockCount ||
-                proofedBatch[_batchIndex]);
+            (block.number - blockAcceptBlockNumber > approveBlockCount);
     }
 
     /**
-     * @notice Challenges an unapproved, unproven batch by providing a deposit.
-     * @dev A batch can be challenged only if it is accepted, not yet approved, not proven, and not already challenged.
+     * @notice Challenges an unapproved block commitment by providing a deposit.
+     * @dev A block commitment can be challenged only if it is part of an accepted batch and not yet proven.
      *      The caller must send at least `challengeDepositAmount` in ETH as a deposit.
-     * @param _batchIndex The index of the batch to challenge.
+     * @param _batchIndex The index of the batch containing the block commitment.
+     * @param _commitmentBatch The block commitment being challenged.
+     * @param _block_proof Merkle proof showing the block commitment is part of the accepted batch.
      */
-    function challengeBatch(uint256 _batchIndex) external payable nonReentrant {
+    function challengeBlockCommitment(
+        uint256 _batchIndex,
+        BlockCommitment calldata _commitmentBatch,
+        MerkleTree.MerkleProof calldata _block_proof
+    ) external payable nonReentrant {
         if (!_acceptedBatch(_batchIndex)) {
             revert BatchNotAccepted(_batchIndex);
         }
+
+        bytes32 batchHash = acceptedBatchHash[_batchIndex];
+        bytes32 commitmentHash = keccak256(
+            abi.encodePacked(
+                _commitmentBatch.previousBlockHash,
+                _commitmentBatch.blockHash,
+                _commitmentBatch.withdrawalHash,
+                _commitmentBatch.depositHash
+            )
+        );
+
+        // Verify block commitment is part of the batch
+        bool blockValid = MerkleTree.verifyMerkleProof(
+            batchHash,
+            commitmentHash,
+            _block_proof.nonce,
+            _block_proof.proof
+        );
+        if (!blockValid) revert InvalidBlockProof();
+
         if (_approvedBatch(_batchIndex)) {
             revert BatchAlreadyApproved(_batchIndex);
         }
-        if (proofedBatch[_batchIndex]) {
-            revert BatchAlreadyProofed(_batchIndex);
+        if (proofedBlockCommitment[commitmentHash]) {
+            revert BlockCommitmentAlreadyProofed(commitmentHash);
         }
-        if (batchChallenger[_batchIndex] != address(0)) {
+        if (blockCommitmentChallenger[commitmentHash] != address(0)) {
             revert BatchAlreadyChallenged(_batchIndex);
         }
 
@@ -498,31 +536,57 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
         }
 
         challengerDeposit[msg.sender] += msg.value;
-        batchChallenger[_batchIndex] = msg.sender;
-        challengeDeadline[_batchIndex] = block.number + challengeBlockCount;
-        challengeQueue.push(_batchIndex);
+        blockCommitmentChallenger[commitmentHash] = msg.sender;
+        challengeDeadline[commitmentHash] = block.number + challengeBlockCount;
+        challengeQueue.push(commitmentHash);
+        batchChallengedCommitments[_batchIndex].push(commitmentHash);
     }
 
     /**
-     * @notice Submits a zk-SNARK proof to finalize and approve a previously accepted batch.
-     * @dev Verifies the proof using the configured zk-SNARK verifier and marks the batch as proven.
+     * @notice Submits a zk-SNARK proof to finalize and approve a previously accepted block commitment.
+     * @dev Verifies the proof using the configured zk-SNARK verifier and marks the block commitment as proven.
      *      If the batch was challenged, the challenger's deposit is unlocked for withdrawal.
-     * @param _batchIndex The index of the batch to prove.
-     * @param _proof The zk-SNARK proof data associated with the batch's root hash.
+     * @param _batchIndex The index of the batch containing the block commitment.
+     * @param _commitmentBatch The block commitment to prove.
+     * @param _proof The zk-SNARK proof data.
+     * @param _block_proof Merkle proof showing the block commitment is part of the accepted batch.
      */
-    function proofBatch(
+    function proofBlockCommitment(
         uint256 _batchIndex,
-        bytes calldata _proof
+        BlockCommitment calldata _commitmentBatch,
+        bytes calldata _proof,
+        MerkleTree.MerkleProof calldata _block_proof
     ) external nonReentrant {
-        bytes32 blockHash = acceptedBatchHash[_batchIndex];
+        bytes32 batchHash = acceptedBatchHash[_batchIndex];
+        bytes32 commitmentHash = keccak256(
+            abi.encodePacked(
+                _commitmentBatch.previousBlockHash,
+                _commitmentBatch.blockHash,
+                _commitmentBatch.withdrawalHash,
+                _commitmentBatch.depositHash
+            )
+        );
+        
+        // Verify block commitment is part of the batch
+        bool blockValid = MerkleTree.verifyMerkleProof(
+            batchHash,
+            commitmentHash,
+            _block_proof.nonce,
+            _block_proof.proof
+        );
+        if (!blockValid) revert InvalidBlockProof();
 
-        verifier.verifyProof(programVKey, _getPublicValues(blockHash), _proof);
+        verifier.verifyProof(
+            programVKey, 
+            _getPublicValuesFromCommitment(_commitmentBatch),
+            _proof
+        );
 
-        proofedBatch[_batchIndex] = true;
-        address challenger = batchChallenger[_batchIndex];
+        proofedBlockCommitment[commitmentHash] = true;
+        address challenger = blockCommitmentChallenger[commitmentHash];
 
         if (challenger != address(0)) {
-            batchChallenger[_batchIndex] = address(0);
+            blockCommitmentChallenger[commitmentHash] = address(0);
             if (challengerDeposit[challenger] >= challengeDepositAmount) {
                 challengerDeposit[challenger] -= challengeDepositAmount;
                 challengerReadyForWithdrawal[
@@ -531,14 +595,48 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
             }
 
             for (uint256 i = 0; i < challengeQueue.length; i++) {
-                if (challengeQueue[i] == _batchIndex) {
+                if (challengeQueue[i] == commitmentHash) {
                     delete challengeQueue[i];
                 }
             }
             _cleanQueue();
+
+            // Remove from batch challenged commitments
+            bytes32[] storage challengedCommitments = batchChallengedCommitments[_batchIndex];
+            for (uint256 i = 0; i < challengedCommitments.length; i++) {
+                if (challengedCommitments[i] == commitmentHash) {
+                    // Replace with last element and pop
+                    challengedCommitments[i] = challengedCommitments[challengedCommitments.length - 1];
+                    challengedCommitments.pop();
+                    break;
+                }
+            }
         }
 
         emit BatchProofed(_batchIndex);
+    }
+
+    /**
+     * @dev Encodes all block commitment fields as public values for proof verification.
+     * @param _commitment The block commitment structure.
+     * @return The encoded public values.
+     */
+    function _getPublicValuesFromCommitment(
+        BlockCommitment calldata _commitment
+    ) internal pure returns (bytes memory) {
+        bytes memory publicValues = new bytes(136); // 4 * 32 bytes + 8 bytes for length
+
+        publicValues[0] = 0x80; // Length of data (128 bytes = 4 * 32)
+
+        //TODO: Check this scheme by stf
+        for (uint256 i = 0; i < 32; i++) {
+            publicValues[8 + i] = _commitment.previousBlockHash[i];
+            publicValues[40 + i] = _commitment.blockHash[i];
+            publicValues[72 + i] = _commitment.withdrawalHash[i];
+            publicValues[104 + i] = _commitment.depositHash[i];
+        }
+
+        return publicValues;
     }
 
     /**
@@ -582,24 +680,10 @@ contract Rollup is Ownable, ReentrancyGuard, BlobHashGetterDeployer {
             _commitmentBatch.depositHash;
     }
 
-    function _getPublicValues(
-        bytes32 _blockHash
-    ) internal pure returns (bytes memory) {
-        bytes memory publicValues = new bytes(40);
-
-        publicValues[0] = 0x20;
-
-        for (uint256 i = 0; i < 32; i++) {
-            publicValues[8 + i] = _blockHash[i];
-        }
-
-        return publicValues;
-    }
-
     function _cleanQueue() internal {
         while (
             challengeQueue.length != 0 &&
-            challengeQueue[challengeQueueStart] == 0
+            challengeQueue[challengeQueueStart] == bytes32(0)
         ) {
             ++challengeQueueStart;
             if (challengeQueueStart >= challengeQueue.length) {

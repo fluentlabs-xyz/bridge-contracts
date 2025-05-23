@@ -1,6 +1,12 @@
 pragma solidity ^0.8.0;
 
 library MerkleTree {
+    /// @notice Structure containing Merkle proof details.
+    struct MerkleProof {
+        uint256 nonce;
+        bytes proof;
+    }
+
     function verifyMerkleProof(
         bytes32 _root,
         bytes32 _hash,
